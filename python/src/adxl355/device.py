@@ -1,0 +1,211 @@
+"""Main ADXL355 device driver."""
+
+from adxl355.constants import (
+    DEVID_AD,
+    DEVID_MST,
+    PARTID,
+    RESET_CODE,
+    STANDARD_GRAVITY_M_S2,
+    SCALE_2G_G_PER_LSB,
+    SCALE_4G_G_PER_LSB,
+    SCALE_8G_G_PER_LSB,
+)
+from adxl355.errors import (
+    BusError,
+    DeviceNotFoundError,
+    InvalidConfigurationError,
+)
+from adxl355.registers import (
+    Register,
+    Range,
+    PowerMode,
+    ODR,
+    RANGE_SEL_MASK,
+    FILTER_ODR_MASK,
+    FILTER_ODR_SHIFT,
+    FILTER_LPF_MASK,
+)
+from adxl355.transport import Transport
+from adxl355.types import RawXYZ, AccelXYZ
+
+
+class ADXL355:
+    """
+    ADXL355 accelerometer driver.
+
+    Transport-agnostic: accepts any object conforming to the Transport protocol.
+    """
+
+    def __init__(self, transport: Transport) -> None:
+        self._transport = transport
+        self._range = Range.G4
+        self._initialized = False
+
+    # ------------------------------------------------------------------
+    # Internal helpers
+    # ------------------------------------------------------------------
+
+    def _read_reg(self, reg: int) -> int:
+        data = self._transport.read_register(reg, 1)
+        return data[0]
+
+    def _write_reg(self, reg: int, value: int) -> None:
+        self._transport.write_register(reg, bytes([value]))
+
+    def _check_init(self) -> None:
+        if not self._initialized:
+            raise DeviceNotFoundError("Device not initialized. Call probe() first.")
+
+    # ------------------------------------------------------------------
+    # Core API
+    # ------------------------------------------------------------------
+
+    def probe(self) -> bool:
+        """
+        Verify device identity by reading ID registers.
+
+        Returns True if all three ID registers match expected values.
+        After successful probe, the device is left in standby mode.
+        """
+        id_ad = self._read_reg(Register.DEVID_AD)
+        id_mst = self._read_reg(Register.DEVID_MST)
+        part_id = self._read_reg(Register.PARTID)
+
+        if id_ad != DEVID_AD or id_mst != DEVID_MST or part_id != PARTID:
+            raise DeviceNotFoundError(
+                f"Device ID mismatch: DEVID_AD=0x{id_ad:02X}, "
+                f"DEVID_MST=0x{id_mst:02X}, PARTID=0x{part_id:02X}"
+            )
+
+        # Enter standby mode after probe
+        self._write_reg(Register.POWER_CTL, PowerMode.STANDBY)
+        self._initialized = True
+        return True
+
+    def reset(self) -> None:
+        """Perform a software reset."""
+        self._write_reg(Register.RESET, RESET_CODE)
+        self._transport.delay_ms(10)
+        self._range = Range.G4
+
+    def set_range(self, range_val: Range) -> None:
+        """Set the acceleration range."""
+        if range_val not in (Range.G2, Range.G4, Range.G8):
+            raise InvalidConfigurationError(f"Invalid range: {range_val}")
+        self._write_reg(Register.RANGE, range_val & RANGE_SEL_MASK)
+        self._range = range_val
+
+    def get_range(self) -> Range:
+        """Read the currently configured range from hardware."""
+        reg = self._read_reg(Register.RANGE)
+        return Range(reg & RANGE_SEL_MASK)
+
+    def set_power_mode(self, mode: PowerMode) -> None:
+        """Set power mode (standby or measurement)."""
+        reg = self._read_reg(Register.POWER_CTL)
+        if mode == PowerMode.MEASUREMENT:
+            reg |= 1
+        else:
+            reg &= ~1
+        self._write_reg(Register.POWER_CTL, reg)
+
+    def set_odr(self, odr: ODR) -> None:
+        """Set output data rate."""
+        if odr not in ODR.__members__.values():
+            raise InvalidConfigurationError(f"Invalid ODR: {odr}")
+        reg = self._read_reg(Register.FILTER)
+        reg = (reg & FILTER_LPF_MASK) | ((int(odr) << FILTER_ODR_SHIFT) & FILTER_ODR_MASK)
+        self._write_reg(Register.FILTER, reg)
+
+    # ------------------------------------------------------------------
+    # Data readout
+    # ------------------------------------------------------------------
+
+    def read_raw(self) -> RawXYZ:
+        """Read raw 20-bit acceleration data for all three axes."""
+        data = self._transport.read_register(Register.XDATA3, 9)
+        x = _decode_raw20(data[0], data[1], data[2])
+        y = _decode_raw20(data[3], data[4], data[5])
+        z = _decode_raw20(data[6], data[7], data[8])
+        return RawXYZ(x, y, z)
+
+    def read_acceleration_g(self) -> AccelXYZ:
+        """Read acceleration in g (gravity multiples)."""
+        raw = self.read_raw()
+        scale = _range_to_scale(self._range)
+        return AccelXYZ(
+            x=raw.x * scale,
+            y=raw.y * scale,
+            z=raw.z * scale,
+        )
+
+    def read_acceleration_mps2(self) -> AccelXYZ:
+        """Read acceleration in m/s²."""
+        accel = self.read_acceleration_g()
+        return AccelXYZ(
+            x=accel.x * STANDARD_GRAVITY_M_S2,
+            y=accel.y * STANDARD_GRAVITY_M_S2,
+            z=accel.z * STANDARD_GRAVITY_M_S2,
+        )
+
+    def read_temperature_raw(self) -> int:
+        """Read raw temperature value (16-bit)."""
+        data = self._transport.read_register(Register.TEMP2, 2)
+        return (data[0] << 8) | data[1]
+
+    def read_temperature_c(self) -> float:
+        """
+        Read temperature in degrees Celsius.
+
+        Preliminary formula (verify against datasheet):
+            T(°C) = raw / 100.0 + 25.0
+        """
+        raw = self.read_temperature_raw()
+        return raw / 100.0 + 25.0
+
+    def read_status(self) -> int:
+        """Read the status register."""
+        return self._read_reg(Register.STATUS)
+
+
+# ------------------------------------------------------------------
+# Stateless conversion functions
+# ------------------------------------------------------------------
+
+
+def _decode_raw20(b0: int, b1: int, b2: int) -> int:
+    """
+    Decode three bytes into a 20-bit two's complement integer.
+
+    Args:
+        b0: MSB (first byte from XDATA3/YDATA3/ZDATA3)
+        b1: Middle byte
+        b2: LSB (last byte)
+
+    Returns:
+        Sign-extended integer in range [-524288, 524287]
+    """
+    raw = (b0 << 12) | (b1 << 4) | (b2 >> 4)
+    if raw & 0x80000:
+        raw -= 0x100000
+    return raw
+
+
+def raw_to_g(raw: int, range_val: Range) -> float:
+    """Convert a decoded raw value to g."""
+    return raw * _range_to_scale(range_val)
+
+
+def raw_to_mps2(raw: int, range_val: Range) -> float:
+    """Convert a decoded raw value to m/s²."""
+    return raw * _range_to_scale(range_val) * STANDARD_GRAVITY_M_S2
+
+
+def _range_to_scale(range_val: Range) -> float:
+    if range_val == Range.G2:
+        return SCALE_2G_G_PER_LSB
+    elif range_val == Range.G4:
+        return SCALE_4G_G_PER_LSB
+    elif range_val == Range.G8:
+        return SCALE_8G_G_PER_LSB
+    return SCALE_4G_G_PER_LSB

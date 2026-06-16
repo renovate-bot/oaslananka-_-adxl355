@@ -1,0 +1,39 @@
+# Build directories
+c/build/
+cpp/build/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+dist/
+build/
+*.egg
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Rust
+rust/target/
+
+# Node
+node/node_modules/
+node/dist/
+
+# Go
+go/bin/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Environment
+.env

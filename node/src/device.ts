@@ -1,0 +1,190 @@
+import {
+  Reg,
+  Range,
+  PowerMode,
+  DEVID_AD_VALUE,
+  DEVID_MST_VALUE,
+  PARTID_VALUE,
+  RESET_CODE,
+  SCALE_2G_G_PER_LSB,
+  SCALE_4G_G_PER_LSB,
+  SCALE_8G_G_PER_LSB,
+  STANDARD_GRAVITY_M_S2,
+  Range as RangeEnum,
+} from "./registers.js";
+import { Transport } from "./transport.js";
+import { RawXYZ, AccelXYZ } from "./types.js";
+import { DeviceNotFoundError, InvalidConfigurationError } from "./errors.js";
+
+/**
+ * ADXL355 accelerometer driver.
+ */
+export class ADXL355 {
+  private transport: Transport;
+  private range: RangeEnum;
+  private initialized: boolean;
+
+  constructor(transport: Transport) {
+    this.transport = transport;
+    this.range = Range.G4;
+    this.initialized = false;
+  }
+
+  // ------------------------------------------------------------------
+  // Internal helpers
+  // ------------------------------------------------------------------
+
+  private async readU8(reg: number): Promise<number> {
+    const data = await this.transport.readRegister(reg, 1);
+    return data[0];
+  }
+
+  private async writeU8(reg: number, value: number): Promise<void> {
+    await this.transport.writeRegister(reg, new Uint8Array([value]));
+  }
+
+  // ------------------------------------------------------------------
+  // Core API
+  // ------------------------------------------------------------------
+
+  /** Probe for the ADXL355 by reading identity registers. */
+  async probe(): Promise<boolean> {
+    const idAd = await this.readU8(Reg.DEVID_AD);
+    const idMst = await this.readU8(Reg.DEVID_MST);
+    const partId = await this.readU8(Reg.PARTID);
+
+    if (idAd !== DEVID_AD_VALUE || idMst !== DEVID_MST_VALUE || partId !== PARTID_VALUE) {
+      throw new DeviceNotFoundError(
+        `ID mismatch: DEVID_AD=0x${idAd.toString(16)}, ` +
+        `DEVID_MST=0x${idMst.toString(16)}, PARTID=0x${partId.toString(16)}`,
+      );
+    }
+
+    // Enter standby mode after probe
+    await this.writeU8(Reg.POWER_CTL, PowerMode.Standby);
+    this.initialized = true;
+    return true;
+  }
+
+  /** Perform a software reset. */
+  async reset(): Promise<void> {
+    await this.writeU8(Reg.RESET, RESET_CODE);
+    if (this.transport.delayMs) {
+      await this.transport.delayMs(10);
+    }
+    this.range = Range.G4;
+  }
+
+  /** Set the acceleration range. */
+  async setRange(range: Range): Promise<void> {
+    if (![Range.G2, Range.G4, Range.G8].includes(range)) {
+      throw new InvalidConfigurationError(`Invalid range: ${range}`);
+    }
+    await this.writeU8(Reg.RANGE, range & 0x03);
+    this.range = range;
+  }
+
+  /** Read the currently configured range. */
+  async getRange(): Promise<Range> {
+    const val = await this.readU8(Reg.RANGE);
+    return (val & 0x03) as Range;
+  }
+
+  /** Set power mode. */
+  async setPowerMode(mode: PowerMode): Promise<void> {
+    let reg = await this.readU8(Reg.POWER_CTL);
+    if (mode === PowerMode.Measurement) {
+      reg |= 1;
+    } else {
+      reg &= ~1;
+    }
+    await this.writeU8(Reg.POWER_CTL, reg);
+  }
+
+  // ------------------------------------------------------------------
+  // Data readout
+  // ------------------------------------------------------------------
+
+  /** Read raw 20-bit acceleration data for all three axes. */
+  async readRaw(): Promise<RawXYZ> {
+    const data = await this.transport.readRegister(Reg.XDATA3, 9);
+    return {
+      x: decodeRaw20(data[0], data[1], data[2]),
+      y: decodeRaw20(data[3], data[4], data[5]),
+      z: decodeRaw20(data[6], data[7], data[8]),
+    };
+  }
+
+  /** Read acceleration in g (gravity multiples). */
+  async readAccelerationG(): Promise<AccelXYZ> {
+    const raw = await this.readRaw();
+    const scale = rangeToScale(this.range);
+    return {
+      x: raw.x * scale,
+      y: raw.y * scale,
+      z: raw.z * scale,
+    };
+  }
+
+  /** Read acceleration in m/s². */
+  async readAccelerationMps2(): Promise<AccelXYZ> {
+    const accel = await this.readAccelerationG();
+    return {
+      x: accel.x * STANDARD_GRAVITY_M_S2,
+      y: accel.y * STANDARD_GRAVITY_M_S2,
+      z: accel.z * STANDARD_GRAVITY_M_S2,
+    };
+  }
+
+  /** Read raw temperature (16-bit). */
+  async readTemperatureRaw(): Promise<number> {
+    const data = await this.transport.readRegister(Reg.TEMP2, 2);
+    return (data[0] << 8) | data[1];
+  }
+
+  /**
+   * Read temperature in degrees Celsius.
+   * Preliminary: T(°C) = raw / 100.0 + 25.0
+   */
+  async readTemperatureC(): Promise<number> {
+    const raw = await this.readTemperatureRaw();
+    return raw / 100.0 + 25.0;
+  }
+
+  /** Read status register. */
+  async readStatus(): Promise<number> {
+    return this.readU8(Reg.STATUS);
+  }
+}
+
+// ------------------------------------------------------------------
+// Conversion functions
+// ------------------------------------------------------------------
+
+/** Decode three bytes into a 20-bit two's complement integer. */
+export function decodeRaw20(b0: number, b1: number, b2: number): number {
+  let raw = (b0 << 12) | (b1 << 4) | (b2 >> 4);
+  if (raw & 0x80000) {
+    raw -= 0x100000;
+  }
+  return raw;
+}
+
+/** Convert a decoded raw value to g. */
+export function rawToG(raw: number, range: Range): number {
+  return raw * rangeToScale(range);
+}
+
+/** Convert a decoded raw value to m/s². */
+export function rawToMps2(raw: number, range: Range): number {
+  return raw * rangeToScale(range) * STANDARD_GRAVITY_M_S2;
+}
+
+function rangeToScale(range: Range): number {
+  switch (range) {
+    case Range.G2: return SCALE_2G_G_PER_LSB;
+    case Range.G4: return SCALE_4G_G_PER_LSB;
+    case Range.G8: return SCALE_8G_G_PER_LSB;
+    default: return SCALE_4G_G_PER_LSB;
+  }
+}

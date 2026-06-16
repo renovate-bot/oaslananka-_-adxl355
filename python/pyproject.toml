@@ -1,0 +1,46 @@
+[build-system]
+requires = ["setuptools>=64"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "adxl355"
+version = "0.1.0"
+description = "Cross-platform ADXL355 accelerometer driver"
+readme = "README.md"
+requires-python = ">=3.9"
+license = { text = "MIT" }
+authors = [
+    { name = "Oğuzhan Aslan" },
+]
+keywords = ["adxl355", "accelerometer", "sensor", "spi", "i2c", "embedded", "raspberry-pi"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Topic :: Scientific/Engineering",
+    "Topic :: System :: Hardware",
+]
+
+[project.optional-dependencies]
+spi = ["spidev"]
+i2c = ["smbus2"]
+dev = ["pytest>=7", "ruff>=0.1", "mypy>=1.0"]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.ruff]
+target-version = "py39"
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "N", "I"]
+
+[tool.mypy]
+strict = true
+python_version = "3.9"

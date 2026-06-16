@@ -1,0 +1,291 @@
+# ADXL355 Register Map
+# Source: ADXL355 Datasheet (Analog Devices)
+# Datasheet verified: false
+# Last verification date: not yet verified
+#
+# WARNING: These register addresses are based on preliminary reference.
+# Verify against official ADXL355 datasheet before finalizing.
+
+registers:
+  - name: DEVID_AD
+    address: 0x00
+    type: read-only
+    default: null
+    description: Analog Devices device ID
+    note: "Expected value: 0xAD"
+
+  - name: DEVID_MST
+    address: 0x01
+    type: read-only
+    default: null
+    description: MEMS sensor ID
+    note: "Expected value: 0x1D"
+
+  - name: PARTID
+    address: 0x02
+    type: read-only
+    default: null
+    description: Part ID
+    note: "Expected value: 0xED"
+
+  - name: REVID
+    address: 0x03
+    type: read-only
+    default: null
+    description: Revision ID
+    note: "Expected value: varies by revision"
+
+  - name: STATUS
+    address: 0x04
+    type: read-only
+    default: null
+    description: Status register
+    fields:
+      - bit: 7
+        name: NVM_BUSY
+        description: NVM ready status (0=ready)
+      - bit: 6
+        name: ACTIVITY
+        description: Activity detection status
+      - bit: 5
+        name: FIFO_OVR
+        description: FIFO overrun indicator
+      - bit: 4
+        name: FIFO_FULL
+        description: FIFO full indicator
+      - bit: 3
+        name: DATA_RDY
+        description: Data ready indicator
+      - bit: 2..0
+        name: FIFO_ENTRY_COUNT
+        description: Number of samples in FIFO (MSB bits)
+
+  - name: FIFO_ENTRIES
+    address: 0x05
+    type: read-only
+    default: null
+    description: FIFO entry count (lower 8 bits)
+
+  - name: TEMP2
+    address: 0x06
+    type: read-only
+    default: null
+    description: Temperature high byte
+
+  - name: TEMP1
+    address: 0x07
+    type: read-only
+    default: null
+    description: Temperature low byte
+
+  - name: XDATA3
+    address: 0x08
+    type: read-only
+    default: null
+    description: X-axis acceleration data (MSB)
+
+  - name: XDATA2
+    address: 0x09
+    type: read-only
+    default: null
+    description: X-axis acceleration data (mid byte)
+
+  - name: XDATA1
+    address: 0x0A
+    type: read-only
+    default: null
+    description: X-axis acceleration data (LSB)
+
+  - name: YDATA3
+    address: 0x0B
+    type: read-only
+    default: null
+    description: Y-axis acceleration data (MSB)
+
+  - name: YDATA2
+    address: 0x0C
+    type: read-only
+    default: null
+    description: Y-axis acceleration data (mid byte)
+
+  - name: YDATA1
+    address: 0x0D
+    type: read-only
+    default: null
+    description: Y-axis acceleration data (LSB)
+
+  - name: ZDATA3
+    address: 0x0E
+    type: read-only
+    default: null
+    description: Z-axis acceleration data (MSB)
+
+  - name: ZDATA2
+    address: 0x0F
+    type: read-only
+    default: null
+    description: Z-axis acceleration data (mid byte)
+
+  - name: ZDATA1
+    address: 0x10
+    type: read-only
+    default: null
+    description: Z-axis acceleration data (LSB)
+
+  - name: FIFO_DATA
+    address: 0x11
+    type: read-only
+    default: null
+    description: FIFO data read
+
+  - name: OFFSET_X_H
+    address: 0x1E
+    type: read-write
+    default: 0x00
+    description: X-axis offset (high byte)
+
+  - name: OFFSET_X_L
+    address: 0x1F
+    type: read-write
+    default: 0x00
+    description: X-axis offset (low byte)
+
+  - name: OFFSET_Y_H
+    address: 0x20
+    type: read-write
+    default: 0x00
+    description: Y-axis offset (high byte)
+
+  - name: OFFSET_Y_L
+    address: 0x21
+    type: read-write
+    default: 0x00
+    description: Y-axis offset (low byte)
+
+  - name: OFFSET_Z_H
+    address: 0x22
+    type: read-write
+    default: 0x00
+    description: Z-axis offset (high byte)
+
+  - name: OFFSET_Z_L
+    address: 0x23
+    type: read-write
+    default: 0x00
+    description: Z-axis offset (low byte)
+
+  - name: ACT_EN
+    address: 0x24
+    type: read-write
+    default: 0x00
+    description: Activity detection enable
+    fields:
+      - bit: 3
+        name: ACT_EN_Z
+        description: Z-axis activity enable
+      - bit: 2
+        name: ACT_EN_Y
+        description: Y-axis activity enable
+      - bit: 1
+        name: ACT_EN_X
+        description: X-axis activity enable
+
+  - name: ACT_THRESH_H
+    address: 0x25
+    type: read-write
+    default: 0x00
+    description: Activity threshold (high byte)
+
+  - name: ACT_THRESH_L
+    address: 0x26
+    type: read-write
+    default: 0x00
+    description: Activity threshold (low byte)
+
+  - name: ACT_COUNT
+    address: 0x27
+    type: read-write
+    default: 0x00
+    description: Activity count
+
+  - name: FILTER
+    address: 0x28
+    type: read-write
+    default: null
+    description: Filter and output data rate control
+    fields:
+      - bit: 7..4
+        name: ODR
+        description: Output data rate selection
+        values:
+          - { value: 0, label: "4000 Hz" }
+          - { value: 1, label: "2000 Hz" }
+          - { value: 2, label: "1000 Hz" }
+          - { value: 3, label: "500 Hz" }
+          - { value: 4, label: "250 Hz" }
+          - { value: 5, label: "125 Hz" }
+          - { value: 6, label: "62.5 Hz" }
+          - { value: 7, label: "31.25 Hz" }
+          - { value: 8, label: "15.625 Hz" }
+          - { value: 9, label: "7.813 Hz" }
+          - { value: 10, label: "3.906 Hz" }
+      - bit: 3..0
+        name: LPF_3DB
+        description: Low-pass filter 3dB corner
+        note: "Filter corner values depend on ODR setting. See datasheet."
+
+  - name: FIFO_SAMPLES
+    address: 0x29
+    type: read-write
+    default: 0x00
+    description: FIFO sample count threshold
+
+  - name: INT_MAP
+    address: 0x2A
+    type: read-write
+    default: 0x00
+    description: Interrupt mapping
+    note: "Bit fields control which interrupt goes to INT1 vs INT2 pins"
+
+  - name: SYNC
+    address: 0x2B
+    type: read-write
+    default: 0x00
+    description: External synchronization control
+
+  - name: RANGE
+    address: 0x2C
+    type: read-write
+    default: 0x01
+    description: Acceleration range selection
+    fields:
+      - bit: 1..0
+        name: RANGE_SEL
+        description: Acceleration range
+        values:
+          - { value: 0, label: "±2g" }
+          - { value: 1, label: "±4g" }
+          - { value: 2, label: "±8g" }
+
+  - name: POWER_CTL
+    address: 0x2D
+    type: read-write
+    default: 0x01
+    description: Power control
+    fields:
+      - bit: 0
+        name: MODE
+        description: Operating mode (0=standby, 1=measurement)
+
+  - name: SELF_TEST
+    address: 0x2E
+    type: read-write
+    default: 0x00
+    description: Self-test control
+
+  - name: RESET
+    address: 0x2F
+    type: write-only
+    default: null
+    description: Software reset trigger
+    note: "Write 0x52 to reset"

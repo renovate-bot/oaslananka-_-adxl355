@@ -1,0 +1,59 @@
+# ADXL355 Constants and Scaling Factors
+# Source: ADXL355 Datasheet (Analog Devices)
+# Datasheet verified: false
+
+device_id:
+  DEVID_AD: 0xAD
+  DEVID_MST: 0x1D
+  PARTID: 0xED
+  description: "These are expected values for identity verification during probe."
+
+reset:
+  RESET_CODE: 0x52
+  description: "Write this value to RESET register (0x2F) to trigger software reset."
+
+power_mode:
+  STANDBY: 0
+  MEASUREMENT: 1
+  description: "Values for POWER_CTL register MODE bit."
+
+range:
+  G2:
+    value: 0
+    description: "±2g range"
+    scale_ug_per_lsb: 3.9
+    scale_g_per_lsb: 0.0000039
+    note: "Scale factors need datasheet verification"
+  G4:
+    value: 1
+    description: "±4g range"
+    scale_ug_per_lsb: 7.8
+    scale_g_per_lsb: 0.0000078
+    note: "Scale factors need datasheet verification"
+  G8:
+    value: 2
+    description: "±8g range"
+    scale_ug_per_lsb: 15.6
+    scale_g_per_lsb: 0.0000156
+    note: "Scale factors need datasheet verification"
+
+gravity:
+  STANDARD_GRAVITY_M_S2: 9.80665
+  description: "Standard gravity constant for g to m/s² conversion"
+
+temperature:
+  formula: "T(°C) = (raw_temp / 100.0) + 25.0"
+  note: "Formula needs datasheet verification. This is an approximation."
+  raw_0deg: null
+  raw_25deg: null
+
+acceleration:
+  raw_bit_width: 20
+  encoding: "twos-complement"
+  data_registers_per_axis: 3
+  register_order: "MSB, MID, LSB"
+  note: |
+    20-bit two's complement value spread across 3 registers.
+    Decode: raw = (b0 << 12) | (b1 << 4) | (b2 >> 4)
+    If raw & 0x80000: raw -= 0x100000
+    This gives range: -524288 to +524287

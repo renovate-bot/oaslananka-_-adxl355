@@ -1,0 +1,75 @@
+{
+  "description": "ADXL355 shared test vectors for cross-language verification",
+  "version": "0.1.0",
+  "raw_decode": [
+    {
+      "name": "zero",
+      "bytes": [0, 0, 0],
+      "raw": 0,
+      "description": "All zeros should decode to 0"
+    },
+    {
+      "name": "positive_one",
+      "bytes": [0, 0, 16],
+      "raw": 1,
+      "description": "LSB set to 1 (bit 4 of LSB byte = raw bit 0)"
+    },
+    {
+      "name": "positive_max",
+      "bytes": [127, 255, 240],
+      "raw": 524287,
+      "description": "Maximum positive value: 0x7FFFF"
+    },
+    {
+      "name": "negative_min",
+      "bytes": [128, 0, 0],
+      "raw": -524288,
+      "description": "Minimum negative value: 0x80000 (two's complement)"
+    },
+    {
+      "name": "negative_one",
+      "bytes": [255, 255, 240],
+      "raw": -1,
+      "description": "All 20 bits set: 0xFFFFF = -1 in two's complement"
+    }
+  ],
+  "acceleration_conversion": {
+    "description": "Raw to g conversion test vectors",
+    "tolerance_g": 1e-6,
+    "tolerance_mps2": 1e-5,
+    "vectors": [
+      {
+        "name": "zero_raw_2g",
+        "raw": 0,
+        "range": "G2",
+        "expected_g": 0.0,
+        "expected_mps2": 0.0
+      },
+      {
+        "name": "positive_max_2g",
+        "raw": 524287,
+        "range": "G2",
+        "expected_g": 2.0447193,
+        "description": "524287 * 3.9e-6 g/LSB for ±2g"
+      },
+      {
+        "name": "negative_min_2g",
+        "raw": -524288,
+        "range": "G2",
+        "expected_g": -2.0447232
+      },
+      {
+        "name": "positive_max_4g",
+        "raw": 524287,
+        "range": "G4",
+        "expected_g": 4.0894386
+      },
+      {
+        "name": "positive_max_8g",
+        "raw": 524287,
+        "range": "G8",
+        "expected_g": 8.1788772
+      }
+    ]
+  }
+}

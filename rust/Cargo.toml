@@ -1,0 +1,21 @@
+[package]
+name = "adxl355"
+version = "0.1.0"
+edition = "2021"
+description = "ADXL355 accelerometer driver for embedded and desktop Rust"
+license = "MIT"
+keywords = ["adxl355", "accelerometer", "embedded-hal", "sensor"]
+categories = ["embedded", "hardware-support", "no-std"]
+
+[dependencies]
+embedded-hal = { version = "1.0", optional = true }
+
+[dev-dependencies]
+
+[features]
+default = ["std"]
+std = []
+hal = ["embedded-hal"]
+
+[package.metadata.docs.rs]
+features = ["std"]
