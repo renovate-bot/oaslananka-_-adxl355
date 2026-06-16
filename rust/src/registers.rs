@@ -1,23 +1,24 @@
 //! ADXL355 register addresses and bit masks.
 //!
-//! Preliminary values — verify against official ADXL355 datasheet.
+//! Based on ADXL354/ADXL355 Rev.D datasheet.
+//! Register map: Table 22 onwards.
 
 /// Register addresses.
 #[allow(non_snake_case, non_upper_case_globals)]
 pub mod reg {
-    /// Device ID (Analog Devices).
+    /// Device ID (Analog Devices). Datasheet Table 23.
     pub const DEVID_AD: u8 = 0x00;
-    /// MEMS sensor ID.
+    /// MEMS sensor ID. Datasheet Table 24.
     pub const DEVID_MST: u8 = 0x01;
-    /// Part ID.
+    /// Part ID. Datasheet Table 25.
     pub const PARTID: u8 = 0x02;
-    /// Revision ID.
+    /// Revision ID. Datasheet Table 26.
     pub const REVID: u8 = 0x03;
-    /// Status register.
+    /// Status register. Datasheet Table 27.
     pub const STATUS: u8 = 0x04;
     /// FIFO entry count.
     pub const FIFO_ENTRIES: u8 = 0x05;
-    /// Temperature high byte.
+    /// Temperature high byte (12-bit left-aligned).
     pub const TEMP2: u8 = 0x06;
     /// Temperature low byte.
     pub const TEMP1: u8 = 0x07;
@@ -53,7 +54,7 @@ pub mod reg {
     pub const OFFSET_Z_H: u8 = 0x22;
     /// Z-axis offset low byte.
     pub const OFFSET_Z_L: u8 = 0x23;
-    /// Activity detection enable.
+    /// Activity detection enable. Datasheet Table 35.
     pub const ACT_EN: u8 = 0x24;
     /// Activity threshold high byte.
     pub const ACT_THRESH_H: u8 = 0x25;
@@ -61,43 +62,93 @@ pub mod reg {
     pub const ACT_THRESH_L: u8 = 0x26;
     /// Activity count.
     pub const ACT_COUNT: u8 = 0x27;
-    /// Filter / output data rate control.
+    /// Filter / output data rate control. Datasheet Table 38.
     pub const FILTER: u8 = 0x28;
     /// FIFO sample count threshold.
     pub const FIFO_SAMPLES: u8 = 0x29;
-    /// Interrupt mapping.
+    /// Interrupt mapping. Datasheet Table 40.
     pub const INT_MAP: u8 = 0x2A;
     /// External synchronization control.
     pub const SYNC: u8 = 0x2B;
-    /// Acceleration range selection.
+    /// Acceleration range selection. Datasheet Table 42.
     pub const RANGE: u8 = 0x2C;
-    /// Power control.
+    /// Power control. Datasheet Table 43.
     pub const POWER_CTL: u8 = 0x2D;
     /// Self-test control.
     pub const SELF_TEST: u8 = 0x2E;
-    /// Software reset (write 0x52).
+    /// Software reset (write 0x52). Datasheet Table 45.
     pub const RESET: u8 = 0x2F;
 }
 
-/// Expected device identity values.
+/// Expected device identity values (datasheet Rev.D, Tables 23-25).
 pub mod id {
     pub const DEVID_AD: u8 = 0xAD;
     pub const DEVID_MST: u8 = 0x1D;
     pub const PARTID: u8 = 0xED;
 }
 
-/// Software reset code.
+/// Software reset code (datasheet Rev.D, Table 45).
 pub const RESET_CODE: u8 = 0x52;
 
-/// Power mode bit.
+/// Power mode bit (datasheet Rev.D, Table 43: bit 0 = 1 => standby).
 pub const POWER_MODE_BIT: u8 = 0;
+
+/// STATUS register bit positions (datasheet Rev.D, Table 27).
+pub mod status {
+    pub const NVM_BUSY: u8 = 4;
+    pub const ACTIVITY: u8 = 3;
+    pub const FIFO_OVR: u8 = 2;
+    pub const FIFO_FULL: u8 = 1;
+    pub const DATA_RDY: u8 = 0;
+}
+
+/// FILTER register masks (datasheet Rev.D, Table 38).
+pub mod filter {
+    /// ODR_LPF in bits 3:0
+    pub const ODR_MASK: u8 = 0x0F;
+    pub const ODR_SHIFT: u8 = 0;
+    /// HPF_CORNER in bits 6:4
+    pub const HPF_MASK: u8 = 0x70;
+    pub const HPF_SHIFT: u8 = 4;
+}
+
+/// RANGE register constants (datasheet Rev.D, Table 42).
+pub mod range_reg {
+    /// Range field mask (bits 1:0)
+    pub const SEL_MASK: u8 = 0x03;
+    /// ±2g register value
+    pub const G2_VAL: u8 = 0x01;
+    /// ±4g register value
+    pub const G4_VAL: u8 = 0x02;
+    /// ±8g register value
+    pub const G8_VAL: u8 = 0x03;
+}
+
+/// SPI command byte helpers (datasheet Rev.D, SPI Protocol section).
+pub mod spi {
+    pub fn read_cmd(reg: u8) -> u8 {
+        (reg << 1) | 0x01
+    }
+    pub fn write_cmd(reg: u8) -> u8 {
+        reg << 1
+    }
+}
+
+/// I2C addresses (datasheet Rev.D, Table 8).
+pub mod i2c {
+    pub const DEFAULT_ADDR: u8 = 0x1D;
+    pub const ALTERNATE_ADDR: u8 = 0x53;
+}
 
 /// Acceleration range selection.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum Range {
-    G2 = 0,
-    G4 = 1,
-    G8 = 2,
+    /// ±2g (register value 0x01)
+    G2 = 0x01,
+    /// ±4g (register value 0x02)
+    G4 = 0x02,
+    /// ±8g (register value 0x03)
+    G8 = 0x03,
 }
 
 impl Range {
@@ -106,12 +157,12 @@ impl Range {
         self as u8
     }
 
-    /// Create from register value.
+    /// Create from register value (masked to bits 1:0).
     pub fn from_register(val: u8) -> Option<Self> {
-        match val & 0x03 {
-            0 => Some(Range::G2),
-            1 => Some(Range::G4),
-            2 => Some(Range::G8),
+        match val & range_reg::SEL_MASK {
+            0x01 => Some(Range::G2),
+            0x02 => Some(Range::G4),
+            0x03 => Some(Range::G8),
             _ => None,
         }
     }
@@ -129,8 +180,10 @@ impl Range {
 /// Power mode.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum PowerMode {
-    Standby = 0,
-    Measurement = 1,
+    /// Standby mode (bit 0 = 1)
+    Standby = 1,
+    /// Measurement mode (bit 0 = 0)
+    Measurement = 0,
 }
 
 /// Output data rate.

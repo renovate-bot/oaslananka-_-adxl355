@@ -1,6 +1,6 @@
 /**
  * ADXL355 register addresses and constants.
- * Preliminary — verify against official ADXL355 datasheet.
+ * Based on ADXL354/ADXL355 Rev.D datasheet.
  */
 
 /** Register addresses */
@@ -43,25 +43,49 @@ export const enum Reg {
   RESET = 0x2f,
 }
 
-/** Expected device identity values */
+/** Expected device identity values (datasheet Rev.D, Tables 23-25) */
 export const DEVID_AD_VALUE = 0xad;
 export const DEVID_MST_VALUE = 0x1d;
 export const PARTID_VALUE = 0xed;
 
-/** Software reset code */
+/** Software reset code (datasheet Rev.D, Table 45) */
 export const RESET_CODE = 0x52;
 
-/** Acceleration range */
+/** STATUS register bit positions (datasheet Rev.D, Table 27) */
+export const STATUS_NVM_BUSY = 4;
+export const STATUS_ACTIVITY = 3;
+export const STATUS_FIFO_OVR = 2;
+export const STATUS_FIFO_FULL = 1;
+export const STATUS_DATA_RDY = 0;
+
+/** FILTER register masks (datasheet Rev.D, Table 38) */
+export const FILTER_ODR_MASK = 0x0f;
+export const FILTER_ODR_SHIFT = 0;
+export const FILTER_HPF_MASK = 0x70;
+export const FILTER_HPF_SHIFT = 4;
+
+/** RANGE register mask for bits 1:0 (datasheet Rev.D, Table 42) */
+export const RANGE_SEL_MASK = 0x03;
+
+/** SPI command helpers (datasheet Rev.D, SPI Protocol section) */
+export function spiReadCmd(reg: number): number { return (reg << 1) | 0x01; }
+export function spiWriteCmd(reg: number): number { return reg << 1; }
+
+/** I2C addresses (datasheet Rev.D, Table 8) */
+export const I2C_DEFAULT_ADDR = 0x1d;
+export const I2C_ALTERNATE_ADDR = 0x53;
+
+/** Acceleration range (datasheet Rev.D, Table 42) */
 export enum Range {
-  G2 = 0,
-  G4 = 1,
-  G8 = 2,
+  G2 = 0x01,
+  G4 = 0x02,
+  G8 = 0x03,
 }
 
-/** Power mode */
+/** Power mode (datasheet Rev.D, Table 43: bit 0 = 1 => standby) */
 export enum PowerMode {
-  Standby = 0,
-  Measurement = 1,
+  Standby = 1,
+  Measurement = 0,
 }
 
 /** Output data rate */

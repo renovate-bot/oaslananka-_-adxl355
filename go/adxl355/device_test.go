@@ -121,3 +121,121 @@ func TestReadRaw(t *testing.T) {
 		t.Fatalf("Raw = %+v, want {X:100 Y:-200 Z:300}", raw)
 	}
 }
+
+func TestTemperatureRaw(t *testing.T) {
+	mock := newMockTransport()
+	mock.regs[RegTEMP2] = 0x07
+	mock.regs[RegTEMP1] = 0x5D
+	dev := New(mock)
+	raw, err := dev.ReadTemperatureRaw()
+	if err != nil {
+		t.Fatalf("ReadTemperatureRaw failed: %v", err)
+	}
+	if raw != 1885 {
+		t.Fatalf("Raw temperature = %d, want 1885", raw)
+	}
+}
+
+func TestTemperatureCelsiusNominal(t *testing.T) {
+	mock := newMockTransport()
+	mock.regs[RegTEMP2] = 0x07
+	mock.regs[RegTEMP1] = 0x5D
+	dev := New(mock)
+	temp, err := dev.ReadTemperatureC()
+	if err != nil {
+		t.Fatalf("ReadTemperatureC failed: %v", err)
+	}
+	if temp < 24.5 || temp > 25.5 {
+		t.Fatalf("Temperature = %f, want ~25.0", temp)
+	}
+}
+
+func TestTemperatureCelsius50C(t *testing.T) {
+	mock := newMockTransport()
+	mock.regs[RegTEMP2] = 0x06
+	mock.regs[RegTEMP1] = 0x7B
+	dev := New(mock)
+	temp, err := dev.ReadTemperatureC()
+	if err != nil {
+		t.Fatalf("ReadTemperatureC failed: %v", err)
+	}
+	if temp < 49.5 || temp > 50.5 {
+		t.Fatalf("Temperature = %f, want ~50.0", temp)
+	}
+}
+
+func TestReadStatusAllClear(t *testing.T) {
+	mock := newMockTransport()
+	mock.regs[RegSTATUS] = 0x00
+	dev := New(mock)
+	status, err := dev.ReadStatus()
+	if err != nil {
+		t.Fatalf("ReadStatus failed: %v", err)
+	}
+	if status != 0x00 {
+		t.Fatalf("Status = 0x%02X, want 0x00", status)
+	}
+}
+
+func TestReadStatusDataReady(t *testing.T) {
+	mock := newMockTransport()
+	mock.regs[RegSTATUS] = 0x01
+	dev := New(mock)
+	status, err := dev.ReadStatus()
+	if err != nil {
+		t.Fatalf("ReadStatus failed: %v", err)
+	}
+	if status != 0x01 {
+		t.Fatalf("Status = 0x%02X, want 0x01", status)
+	}
+}
+
+func TestReadStatusFifoFull(t *testing.T) {
+	mock := newMockTransport()
+	mock.regs[RegSTATUS] = 0x02
+	dev := New(mock)
+	status, err := dev.ReadStatus()
+	if err != nil {
+		t.Fatalf("ReadStatus failed: %v", err)
+	}
+	if status != 0x02 {
+		t.Fatalf("Status = 0x%02X, want 0x02", status)
+	}
+}
+
+func TestFilterDefaultODR(t *testing.T) {
+	mock := newMockTransport()
+	// Default: FILTER = 0x00
+	if mock.regs[RegFILTER]&FilterODR_MASK != 0x00 {
+		t.Fatal("Default ODR mask not zero")
+	}
+	if mock.regs[RegFILTER]&FilterHPF_MASK != 0x00 {
+		t.Fatal("Default HPF mask not zero")
+	}
+}
+
+func TestReset(t *testing.T) {
+	mock := newMockTransport()
+	dev := New(mock)
+	if err := dev.Reset(); err != nil {
+		t.Fatalf("Reset failed: %v", err)
+	}
+	// Verify reset code was written to the register
+	if mock.regs[RegRESET] != RESET_CODE {
+		t.Fatalf("Reset register = 0x%02X, want 0x%02X", mock.regs[RegRESET], RESET_CODE)
+	}
+}
+
+func TestHalfScaleDecode(t *testing.T) {
+	mock := newMockTransport()
+	mock.setRawXYZ(262144, 0, 0)
+	dev := New(mock)
+	dev.Probe()
+	raw, err := dev.ReadRaw()
+	if err != nil {
+		t.Fatalf("ReadRaw failed: %v", err)
+	}
+	if raw.X != 262144 {
+		t.Fatalf("X = %d, want 262144", raw.X)
+	}
+}

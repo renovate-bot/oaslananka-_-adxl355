@@ -49,18 +49,24 @@ class Register(IntEnum):
 
 
 class Range(IntEnum):
-    """Acceleration range selection."""
+    """Acceleration range selection.
 
-    G2 = 0
-    G4 = 1
-    G8 = 2
+    Datasheet Rev.D, Table 42: 0x01=2g, 0x02=4g, 0x03=8g
+    """
+
+    G2 = 0x01
+    G4 = 0x02
+    G8 = 0x03
 
 
 class PowerMode(IntEnum):
-    """Power mode control."""
+    """Power mode control.
 
-    STANDBY = 0
-    MEASUREMENT = 1
+    Datasheet Rev.D, Table 43: bit 0 = 1 => standby, bit 0 = 0 => measurement.
+    """
+
+    STANDBY = 1
+    MEASUREMENT = 0
 
 
 class ODR(IntEnum):
@@ -79,17 +85,19 @@ class ODR(IntEnum):
     HZ_3_906 = 10
 
 
-# Status register bits
-STATUS_NVM_BUSY = 1 << 7
-STATUS_ACTIVITY = 1 << 6
-STATUS_FIFO_OVR = 1 << 5
-STATUS_FIFO_FULL = 1 << 4
-STATUS_DATA_RDY = 1 << 3
+# Status register bits (datasheet Rev.D, Table 27)
+STATUS_NVM_BUSY = 1 << 4
+STATUS_ACTIVITY = 1 << 3
+STATUS_FIFO_OVR = 1 << 2
+STATUS_FIFO_FULL = 1 << 1
+STATUS_DATA_RDY = 1 << 0
 
-# Filter register masks
-FILTER_ODR_MASK = 0xF0
-FILTER_ODR_SHIFT = 4
-FILTER_LPF_MASK = 0x0F
+# Filter register masks (datasheet Rev.D, Table 38)
+# bits 3:0 = ODR_LPF, bits 6:4 = HPF_CORNER
+FILTER_ODR_MASK = 0x0F
+FILTER_ODR_SHIFT = 0
+FILTER_HPF_MASK = 0x70
+FILTER_HPF_SHIFT = 4
 
-# Range register mask
+# Range register mask (datasheet Rev.D, Table 42)
 RANGE_SEL_MASK = 0x03

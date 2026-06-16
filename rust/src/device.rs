@@ -85,7 +85,9 @@ impl<T: Transport> Adxl355<T> {
 
     /// Set the acceleration range.
     pub fn set_range(&mut self, range: Range) -> Result<(), Error> {
-        self.write_u8(registers::reg::RANGE, range.to_register())?;
+        let mut reg = self.read_u8(registers::reg::RANGE)?;
+        reg = (reg & !registers::range_reg::SEL_MASK) | (range.to_register() & registers::range_reg::SEL_MASK);
+        self.write_u8(registers::reg::RANGE, reg)?;
         self.range = range;
         Ok(())
     }
@@ -99,7 +101,8 @@ impl<T: Transport> Adxl355<T> {
     /// Set the power mode.
     pub fn set_power_mode(&mut self, mode: PowerMode) -> Result<(), Error> {
         let mut reg = self.read_u8(registers::reg::POWER_CTL)?;
-        if mode == PowerMode::Measurement {
+        /* Datasheet Rev.D, Table 43: bit 0 = 1 => standby, bit 0 = 0 => measurement */
+        if mode == PowerMode::Standby {
             reg |= 1 << registers::POWER_MODE_BIT;
         } else {
             reg &= !(1 << registers::POWER_MODE_BIT);
@@ -156,11 +159,11 @@ impl<T: Transport> Adxl355<T> {
 
     /// Read temperature in degrees Celsius.
     ///
-    /// Preliminary formula: T(°C) = raw / 100.0 + 25.0
-    /// TODO: Verify against datasheet.
+    /// Datasheet Rev.D: 12-bit unsigned, nominal intercept 1885 LSB at 25°C,
+    /// slope -9.05 LSB/°C. Formula: T(°C) = 25.0 + (raw - 1885.0) / -9.05
     pub fn read_temperature_c(&mut self) -> Result<f32, Error> {
         let raw = self.read_temperature_raw()?;
-        Ok(raw as f32 / 100.0 + 25.0)
+        Ok(25.0 + (raw as f32 - 1885.0) / -9.05)
     }
 
     /// Read the status register.

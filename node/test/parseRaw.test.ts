@@ -22,6 +22,14 @@ describe("decodeRaw20", () => {
   it("should decode negative one", () => {
     expect(decodeRaw20(255, 255, 240)).toBe(-1);
   });
+
+  it("should decode half-scale positive", () => {
+    expect(decodeRaw20(64, 0, 0)).toBe(262144);
+  });
+
+  it("should decode half-scale negative", () => {
+    expect(decodeRaw20(192, 0, 0)).toBe(-262144);
+  });
 });
 
 describe("rawToG", () => {

@@ -28,3 +28,13 @@ fn test_g_conversion() {
     let expected = 524287.0 * 0.0000039;
     assert!((g - expected).abs() < 1e-6);
 }
+
+#[test]
+fn test_decode_half_scale_positive() {
+    assert_eq!(decode_raw20(64, 0, 0), 262144);
+}
+
+#[test]
+fn test_decode_half_scale_negative() {
+    assert_eq!(decode_raw20(192, 0, 0), -262144);
+}

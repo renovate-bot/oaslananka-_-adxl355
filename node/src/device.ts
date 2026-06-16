@@ -75,12 +75,13 @@ export class ADXL355 {
     this.range = Range.G4;
   }
 
-  /** Set the acceleration range. */
+  /** Set the acceleration range, preserving unrelated bits. */
   async setRange(range: Range): Promise<void> {
     if (![Range.G2, Range.G4, Range.G8].includes(range)) {
       throw new InvalidConfigurationError(`Invalid range: ${range}`);
     }
-    await this.writeU8(Reg.RANGE, range & 0x03);
+    const reg = (await this.readU8(Reg.RANGE)) & ~0x03;
+    await this.writeU8(Reg.RANGE, reg | (range & 0x03));
     this.range = range;
   }
 
@@ -90,10 +91,10 @@ export class ADXL355 {
     return (val & 0x03) as Range;
   }
 
-  /** Set power mode. */
+  /** Set power mode. Datasheet Rev.D, Table 43: bit 0 = 1 => standby. */
   async setPowerMode(mode: PowerMode): Promise<void> {
     let reg = await this.readU8(Reg.POWER_CTL);
-    if (mode === PowerMode.Measurement) {
+    if (mode === PowerMode.Standby) {
       reg |= 1;
     } else {
       reg &= ~1;
@@ -144,11 +145,11 @@ export class ADXL355 {
 
   /**
    * Read temperature in degrees Celsius.
-   * Preliminary: T(°C) = raw / 100.0 + 25.0
+   * Datasheet Rev.D: T(°C) = 25.0 + (raw - 1885.0) / -9.05
    */
   async readTemperatureC(): Promise<number> {
     const raw = await this.readTemperatureRaw();
-    return raw / 100.0 + 25.0;
+    return 25.0 + (raw - 1885.0) / -9.05;
   }
 
   /** Read status register. */

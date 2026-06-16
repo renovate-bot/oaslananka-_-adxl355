@@ -91,4 +91,81 @@ describe("ADXL355", () => {
     expect(accel.y).toBe(0);
     expect(accel.z).toBeLessThan(0);
   });
+
+  it("should read temperature raw nominal", async () => {
+    const transport = new MockTransport();
+    transport["regs"][Reg.TEMP2] = 0x07;
+    transport["regs"][Reg.TEMP1] = 0x5d;
+    const dev = new ADXL355(transport);
+    const raw = await dev.readTemperatureRaw();
+    expect(raw).toBe(1885);
+  });
+
+  it("should read temperature celsius nominal", async () => {
+    const transport = new MockTransport();
+    transport["regs"][Reg.TEMP2] = 0x07;
+    transport["regs"][Reg.TEMP1] = 0x5d;
+    const dev = new ADXL355(transport);
+    const temp = await dev.readTemperatureC();
+    expect(temp).toBeCloseTo(25.0, 1);
+  });
+
+  it("should read temperature celsius 50C", async () => {
+    const transport = new MockTransport();
+    transport["regs"][Reg.TEMP2] = 0x06;
+    transport["regs"][Reg.TEMP1] = 0x7b;
+    const dev = new ADXL355(transport);
+    const temp = await dev.readTemperatureC();
+    expect(temp).toBeCloseTo(50.0, 1);
+  });
+
+  it("should read status all clear", async () => {
+    const transport = new MockTransport();
+    transport["regs"][Reg.STATUS] = 0x00;
+    const dev = new ADXL355(transport);
+    const status = await dev.readStatus();
+    expect(status).toBe(0);
+  });
+
+  it("should read status data ready", async () => {
+    const transport = new MockTransport();
+    transport["regs"][Reg.STATUS] = 0x01;
+    const dev = new ADXL355(transport);
+    const status = await dev.readStatus();
+    expect(status).toBe(1);
+  });
+
+  it("should read status fifo full", async () => {
+    const transport = new MockTransport();
+    transport["regs"][Reg.STATUS] = 0x02;
+    const dev = new ADXL355(transport);
+    const status = await dev.readStatus();
+    expect(status).toBe(2);
+  });
+
+  it("should filter default odr", async () => {
+    const transport = new MockTransport();
+    const dev = new ADXL355(transport);
+    const regs = transport["regs"];
+    expect(regs[Reg.FILTER] & 0x0f).toBe(0x00);
+    expect(regs[Reg.FILTER] & 0x70).toBe(0x00);
+  });
+
+  it("should reset call log", async () => {
+    const transport = new MockTransport();
+    const dev = new ADXL355(transport);
+    await dev.reset();
+    expect(transport.callCount).toBeGreaterThanOrEqual(1);
+    expect(transport.calls[0].isWrite).toBe(true);
+    expect(transport.calls[0].reg).toBe(Reg.RESET);
+  });
+
+  it("should decode half-scale via read", async () => {
+    const transport = new MockTransport();
+    transport.setRawXYZ(262144, 0, 0);
+    const dev = new ADXL355(transport);
+    await dev.probe();
+    const raw = await dev.readRaw();
+    expect(raw.x).toBe(262144);
+  });
 });

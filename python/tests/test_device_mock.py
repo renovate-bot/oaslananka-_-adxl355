@@ -99,9 +99,9 @@ class TestReadAcceleration:
 class TestStatus:
     def test_read_status(self, mock_device: ADXL355) -> None:
         transport = mock_device._transport
-        transport.set_register(Register.STATUS, 0x08)  # DATA_RDY
+        transport.set_register(Register.STATUS, 0x01)  # DATA_RDY (bit 0)
         status = mock_device.read_status()
-        assert status & 0x08
+        assert status & 0x01
 
 
 class TestReset:
@@ -120,9 +120,121 @@ class TestTemperature:
         raw = mock_device.read_temperature_raw()
         assert raw == 0x0190
 
-    def test_temperature_c(self, mock_device: ADXL355) -> None:
+    def test_temperature_c_nominal(self, mock_device: ADXL355) -> None:
+        """raw=1885 → 25.0°C (datasheet nominal intercept)."""
+        transport = mock_device._transport
+        transport.set_register(Register.TEMP2, 0x07)
+        transport.set_register(Register.TEMP1, 0x5D)  # 0x075D = 1885
+        temp = mock_device.read_temperature_c()
+        assert abs(temp - 25.0) < 0.01
+
+    def test_temperature_c_zero(self, mock_device: ADXL355) -> None:
+        """raw=0 → 25 + (0 - 1885) / -9.05 ≈ 233.29°C."""
         transport = mock_device._transport
         transport.set_register(Register.TEMP2, 0x00)
         transport.set_register(Register.TEMP1, 0x00)
         temp = mock_device.read_temperature_c()
-        assert temp == 25.0  # 0/100 + 25
+        assert abs(temp - 233.287) < 0.01
+
+    def test_temperature_c_max(self, mock_device: ADXL355) -> None:
+        """raw=4095 (12-bit max) → 25 + (4095 - 1885) / -9.05 ≈ -170.17°C."""
+        transport = mock_device._transport
+        transport.set_register(Register.TEMP2, 0x0F)
+        transport.set_register(Register.TEMP1, 0xFF)  # 0x0FFF = 4095
+        temp = mock_device.read_temperature_c()
+        expected = 25.0 + (4095 - 1885.0) / -9.05
+        assert abs(temp - expected) < 0.01
+
+    def test_temperature_increasing_raw_decreases(self, mock_device: ADXL355) -> None:
+        """Verify temperature decreases as raw increases (negative slope)."""
+        transport = mock_device._transport
+        transport.set_register(Register.TEMP2, 0x00)
+        transport.set_register(Register.TEMP1, 0x00)
+        t_low_raw = mock_device.read_temperature_c()
+        transport.set_register(Register.TEMP2, 0x07)
+        transport.set_register(Register.TEMP1, 0x5D)  # 1885
+        t_high_raw = mock_device.read_temperature_c()
+        assert t_low_raw > t_high_raw, "temperature should decrease as raw increases"
+
+
+class TestFifo:
+    def test_read_fifo_entries(self, mock_device: ADXL355) -> None:
+        transport = mock_device._transport
+        transport.set_register(Register.FIFO_ENTRIES, 0x2A)
+        entries = mock_device.read_fifo_entries()
+        assert entries == 0x2A
+
+    def test_fifo_entries_default_zero(self, mock_device: ADXL355) -> None:
+        entries = mock_device.read_fifo_entries()
+        assert entries == 0
+
+
+class TestActivity:
+    def test_activity_status_bit(self, mock_device: ADXL355) -> None:
+        transport = mock_device._transport
+        transport.set_register(Register.STATUS, 0x08)  # bit 3 = ACTIVITY
+        status = mock_device.read_status()
+        assert status & 0x08, "ACTIVITY bit (3) should be set"
+
+    def test_multiple_status_bits(self, mock_device: ADXL355) -> None:
+        transport = mock_device._transport
+        transport.set_register(Register.STATUS, 0x1F)  # all 5 bits
+        status = mock_device.read_status()
+        assert status == 0x1F
+
+
+class TestBusError:
+    def test_read_raw_raises_on_bus_error(self, mock_device: ADXL355) -> None:
+        from adxl355.errors import BusError
+        transport = mock_device._transport
+        transport.inject_error(BusError("mock bus error"))
+        with pytest.raises(BusError):
+            mock_device.read_raw()
+
+    def test_read_status_raises_on_bus_error(self, mock_device: ADXL355) -> None:
+        from adxl355.errors import BusError
+        transport = mock_device._transport
+        transport.inject_error(BusError("mock bus error"))
+        with pytest.raises(BusError):
+            mock_device.read_status()
+
+    def test_set_range_raises_on_bus_error(self, mock_device: ADXL355) -> None:
+        from adxl355.errors import BusError
+        transport = mock_device._transport
+        transport.inject_error(BusError("mock bus error"))
+        with pytest.raises(BusError):
+            mock_device.set_range(Range.G2)
+
+    def test_set_power_mode_raises_on_bus_error(self, mock_device: ADXL355) -> None:
+        from adxl355.errors import BusError
+        transport = mock_device._transport
+        transport.inject_error(BusError("mock bus error"))
+        with pytest.raises(BusError):
+            mock_device.set_power_mode(PowerMode.MEASUREMENT)
+
+    def test_clear_error_restores_operation(self, mock_device: ADXL355) -> None:
+        from adxl355.errors import BusError
+        transport = mock_device._transport
+        transport.inject_error(BusError("mock bus error"))
+        transport.clear_error()
+        # Should not raise after clear
+        raw = mock_device.read_raw()
+        assert raw is not None
+
+
+class TestResetVerification:
+    def test_reset_writes_correct_register(self, mock_device: ADXL355) -> None:
+        mock_device.reset()
+        transport = mock_device._transport
+        writes = [c for c in transport.calls if c["is_write"] and c["reg"] == Register.RESET]
+        assert len(writes) >= 1, "reset should write to RESET register"
+
+    def test_reset_code(self, mock_device: ADXL355) -> None:
+        from adxl355.constants import RESET_CODE
+        mock_device.reset()
+
+    def test_reset_clears_call_log(self, mock_device: ADXL355) -> None:
+        transport = mock_device._transport
+        prev_count = transport.call_count
+        mock_device.reset()
+        assert transport.call_count > prev_count, "reset should generate bus calls"

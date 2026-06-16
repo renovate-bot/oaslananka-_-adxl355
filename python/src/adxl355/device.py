@@ -23,7 +23,7 @@ from adxl355.registers import (
     RANGE_SEL_MASK,
     FILTER_ODR_MASK,
     FILTER_ODR_SHIFT,
-    FILTER_LPF_MASK,
+    FILTER_HPF_MASK,
 )
 from adxl355.transport import Transport
 from adxl355.types import RawXYZ, AccelXYZ
@@ -89,10 +89,16 @@ class ADXL355:
         self._range = Range.G4
 
     def set_range(self, range_val: Range) -> None:
-        """Set the acceleration range."""
+        """Set the acceleration range.
+
+        Datasheet Rev.D, Table 42: range in bits 1:0 (0x01=2g, 0x02=4g, 0x03=8g).
+        Unrelated bits (INT_POL, I2C_HS) are preserved.
+        """
         if range_val not in (Range.G2, Range.G4, Range.G8):
             raise InvalidConfigurationError(f"Invalid range: {range_val}")
-        self._write_reg(Register.RANGE, range_val & RANGE_SEL_MASK)
+        reg = self._read_reg(Register.RANGE)
+        reg = (reg & ~RANGE_SEL_MASK) | (int(range_val) & RANGE_SEL_MASK)
+        self._write_reg(Register.RANGE, reg)
         self._range = range_val
 
     def get_range(self) -> Range:
@@ -101,20 +107,26 @@ class ADXL355:
         return Range(reg & RANGE_SEL_MASK)
 
     def set_power_mode(self, mode: PowerMode) -> None:
-        """Set power mode (standby or measurement)."""
+        """Set power mode (standby or measurement).
+
+        Datasheet Rev.D, Table 43: bit 0 = 1 => standby, bit 0 = 0 => measurement.
+        """
         reg = self._read_reg(Register.POWER_CTL)
-        if mode == PowerMode.MEASUREMENT:
+        if mode == PowerMode.STANDBY:
             reg |= 1
         else:
             reg &= ~1
         self._write_reg(Register.POWER_CTL, reg)
 
     def set_odr(self, odr: ODR) -> None:
-        """Set output data rate."""
+        """Set output data rate.
+
+        Datasheet Rev.D, Table 38: ODR_LPF in bits 3:0, HPF_CORNER in bits 6:4.
+        """
         if odr not in ODR.__members__.values():
             raise InvalidConfigurationError(f"Invalid ODR: {odr}")
         reg = self._read_reg(Register.FILTER)
-        reg = (reg & FILTER_LPF_MASK) | ((int(odr) << FILTER_ODR_SHIFT) & FILTER_ODR_MASK)
+        reg = (reg & FILTER_HPF_MASK) | ((int(odr) << FILTER_ODR_SHIFT) & FILTER_ODR_MASK)
         self._write_reg(Register.FILTER, reg)
 
     # ------------------------------------------------------------------
@@ -157,15 +169,19 @@ class ADXL355:
         """
         Read temperature in degrees Celsius.
 
-        Preliminary formula (verify against datasheet):
-            T(°C) = raw / 100.0 + 25.0
+        Datasheet Rev.D: 12-bit unsigned, nominal intercept 1885 LSB at 25°C,
+        slope -9.05 LSB/°C. Formula: T(°C) = 25.0 + (raw - 1885.0) / -9.05
         """
         raw = self.read_temperature_raw()
-        return raw / 100.0 + 25.0
+        return 25.0 + (raw - 1885.0) / -9.05
 
     def read_status(self) -> int:
         """Read the status register."""
         return self._read_reg(Register.STATUS)
+
+    def read_fifo_entries(self) -> int:
+        """Read the number of valid samples in the FIFO."""
+        return self._read_reg(Register.FIFO_ENTRIES)
 
 
 # ------------------------------------------------------------------

@@ -59,3 +59,96 @@ fn test_reset() {
     let mut dev = Adxl355::new(bus);
     assert!(dev.reset().is_ok());
 }
+
+#[test]
+fn test_temperature_raw() {
+    let mut bus = MockBus::new();
+    // TEMP2 = 0x07, TEMP1 = 0x5D → 0x075D = 1885 (nominal)
+    bus.regs[registers::reg::TEMP2 as usize] = 0x07;
+    bus.regs[registers::reg::TEMP1 as usize] = 0x5D;
+    let mut dev = Adxl355::new(bus);
+    let raw = dev.read_temperature_raw().unwrap();
+    assert_eq!(raw, 1885);
+}
+
+#[test]
+fn test_temperature_celsius_nominal() {
+    let mut bus = MockBus::new();
+    // Raw = 1885 → 25°C
+    bus.regs[registers::reg::TEMP2 as usize] = 0x07;
+    bus.regs[registers::reg::TEMP1 as usize] = 0x5D;
+    let mut dev = Adxl355::new(bus);
+    let temp = dev.read_temperature_c().unwrap();
+    assert!((temp - 25.0).abs() < 0.1);
+}
+
+#[test]
+fn test_temperature_celsius_fifty() {
+    let mut bus = MockBus::new();
+    // 50°C → raw = 1885 - 25 * 9.05 ≈ 1659 = 0x067B
+    bus.regs[registers::reg::TEMP2 as usize] = 0x06;
+    bus.regs[registers::reg::TEMP1 as usize] = 0x7B;
+    let mut dev = Adxl355::new(bus);
+    let temp = dev.read_temperature_c().unwrap();
+    assert!((temp - 50.0).abs() < 0.5);
+}
+
+#[test]
+fn test_read_status_all_clear() {
+    let mut bus = MockBus::new();
+    bus.regs[registers::reg::STATUS as usize] = 0x00;
+    let mut dev = Adxl355::new(bus);
+    let status = dev.read_status().unwrap();
+    assert_eq!(status, 0x00);
+}
+
+#[test]
+fn test_read_status_data_ready() {
+    let mut bus = MockBus::new();
+    bus.regs[registers::reg::STATUS as usize] = 0x01; // DATA_RDY bit
+    let mut dev = Adxl355::new(bus);
+    let status = dev.read_status().unwrap();
+    assert_eq!(status, 0x01);
+}
+
+#[test]
+fn test_read_status_fifo_full() {
+    let mut bus = MockBus::new();
+    bus.regs[registers::reg::STATUS as usize] = 0x02; // FIFO_FULL bit
+    let mut dev = Adxl355::new(bus);
+    let status = dev.read_status().unwrap();
+    assert_eq!(status, 0x02);
+}
+
+#[test]
+fn test_filter_default_odr() {
+    let bus = MockBus::new();
+    let dev = Adxl355::new(bus);
+    let inner = dev.into_inner();
+    assert_eq!(inner.regs[registers::reg::FILTER as usize] & registers::filter::ODR_MASK, 0x00);
+    assert_eq!(inner.regs[registers::reg::FILTER as usize] & registers::filter::HPF_MASK, 0x00);
+}
+
+#[test]
+fn test_filter_hpf_preserved() {
+    let mut bus = MockBus::new();
+    bus.regs[registers::reg::FILTER as usize] = 0x10;
+    let dev = Adxl355::new(bus);
+    let inner = dev.into_inner();
+    assert_eq!(inner.regs[registers::reg::FILTER as usize] & registers::filter::HPF_MASK, 0x10);
+}
+
+#[test]
+fn test_half_scale_decode() {
+    let mut bus = MockBus::new();
+    bus.regs[registers::reg::XDATA3 as usize] = 0x40;
+    bus.regs[registers::reg::XDATA2 as usize] = 0x00;
+    bus.regs[registers::reg::XDATA1 as usize] = 0x00;
+    bus.regs[registers::reg::DEVID_AD as usize] = registers::id::DEVID_AD;
+    bus.regs[registers::reg::DEVID_MST as usize] = registers::id::DEVID_MST;
+    bus.regs[registers::reg::PARTID as usize] = registers::id::PARTID;
+    let mut dev = Adxl355::new(bus);
+    dev.probe().unwrap();
+    let raw = dev.read_raw().unwrap();
+    assert_eq!(raw.x, 262144);
+}

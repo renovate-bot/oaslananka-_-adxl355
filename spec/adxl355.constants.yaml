@@ -1,51 +1,101 @@
 # ADXL355 Constants and Scaling Factors
-# Source: ADXL355 Datasheet (Analog Devices)
-# Datasheet verified: false
+# Source: ADXL354/ADXL355 Rev.D Datasheet (Analog Devices)
+# Datasheet verified: true
+# Last verification date: 2026-06-16
+#
+# Reference: https://www.analog.com/media/en/technical-documentation/data-sheets/adxl354_adxl355.pdf
 
 device_id:
   DEVID_AD: 0xAD
   DEVID_MST: 0x1D
   PARTID: 0xED
-  description: "These are expected values for identity verification during probe."
+  description: "Expected identity register values. See datasheet Table 23-25."
 
 reset:
   RESET_CODE: 0x52
-  description: "Write this value to RESET register (0x2F) to trigger software reset."
+  description: "Write this value to RESET register (0x2F) to trigger software reset. See datasheet Table 45."
 
 power_mode:
-  STANDBY: 0
-  MEASUREMENT: 1
-  description: "Values for POWER_CTL register MODE bit."
+  STANDBY: 1
+  MEASUREMENT: 0
+  description: |
+    Values for POWER_CTL register MODE bit (bit 0).
+    bit 0 = 1: standby
+    bit 0 = 0: measurement
+    See datasheet Table 43.
 
 range:
   G2:
-    value: 0
-    description: "±2g range"
+    value: 0x01
+    description: "±2g range (register value 0x01)"
     scale_ug_per_lsb: 3.9
     scale_g_per_lsb: 0.0000039
-    note: "Scale factors need datasheet verification"
+    datasheet_ref: "Table 42, sensitivity ±2g: 256,000 LSB/g nominal (3.9 µg/LSB)"
   G4:
-    value: 1
-    description: "±4g range"
+    value: 0x02
+    description: "±4g range (register value 0x02)"
     scale_ug_per_lsb: 7.8
     scale_g_per_lsb: 0.0000078
-    note: "Scale factors need datasheet verification"
+    datasheet_ref: "Table 2, sensitivity ±4g: 128,000 LSB/g nominal (7.8 µg/LSB)"
   G8:
-    value: 2
-    description: "±8g range"
+    value: 0x03
+    description: "±8g range (register value 0x03)"
     scale_ug_per_lsb: 15.6
     scale_g_per_lsb: 0.0000156
-    note: "Scale factors need datasheet verification"
+    datasheet_ref: "Table 2, sensitivity ±8g: 64,000 LSB/g nominal (15.6 µg/LSB)"
+
+status_register:
+  DATA_RDY: 0
+  FIFO_FULL: 1
+  FIFO_OVR: 2
+  ACTIVITY: 3
+  NVM_BUSY: 4
+  description: "STATUS register bit assignments. See datasheet Table 27."
+
+filter_register:
+  ODR_LPF_MASK: 0x0F
+  HPF_CORNER_MASK: 0x70
+  HPF_CORNER_SHIFT: 4
+  description: |
+    FILTER register (0x28) bit layout:
+    bits 3:0 = ODR_LPF (output data rate)
+    bits 6:4 = HPF_CORNER (high-pass filter corner)
+    bit 7 = reserved
+    See datasheet Table 38.
+
+spi_command:
+  read_format: "(reg << 1) | 0x01"
+  write_format: "reg << 1"
+  description: |
+    SPI command byte:
+    bit 7 = MB (multi-byte flag, 0 for single-byte)
+    bit 0 = R/W (1 = read, 0 = write)
+    bits 6:1 = address
+    See datasheet SPI Protocol section.
+
+i2c_address:
+  default: 0x1D
+  alternate: 0x53
+  description: |
+    I2C 7-bit addresses.
+    ASEL pin = GND: 0x1D
+    ASEL pin = VDDIO: 0x53
+    See datasheet Table 8.
 
 gravity:
   STANDARD_GRAVITY_M_S2: 9.80665
   description: "Standard gravity constant for g to m/s² conversion"
 
 temperature:
-  formula: "T(°C) = (raw_temp / 100.0) + 25.0"
-  note: "Formula needs datasheet verification. This is an approximation."
-  raw_0deg: null
-  raw_25deg: null
+  formula: "T(°C) = 25.0 + (raw - 1885.0) / -9.05"
+  note: |
+    Nominal conversion based on datasheet:
+    - 12-bit unsigned temperature sensor
+    - 25°C corresponds to approximately 1885 LSB (nominal intercept)
+    - Slope: -9.05 LSB/°C (temperature decreases as raw increases)
+    - Actual devices may need calibration for accurate readings
+    Raw value 0x00 = 12-bit left-aligned in TEMP2/TEMP1 registers
+    See datasheet Temperature Sensor section.
 
 acceleration:
   raw_bit_width: 20
@@ -57,3 +107,4 @@ acceleration:
     Decode: raw = (b0 << 12) | (b1 << 4) | (b2 >> 4)
     If raw & 0x80000: raw -= 0x100000
     This gives range: -524288 to +524287
+    See datasheet Reading Acceleration Data section.

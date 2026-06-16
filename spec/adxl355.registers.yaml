@@ -1,31 +1,41 @@
 # ADXL355 Register Map
-# Source: ADXL355 Datasheet (Analog Devices)
-# Datasheet verified: false
-# Last verification date: not yet verified
+# Source: ADXL354/ADXL355 Rev.D Datasheet (Analog Devices)
+# Datasheet verified: true
+# Last verification date: 2026-06-16
 #
-# WARNING: These register addresses are based on preliminary reference.
-# Verify against official ADXL355 datasheet before finalizing.
+# Reference: https://www.analog.com/media/en/technical-documentation/data-sheets/adxl354_adxl355.pdf
+# Register map: Table 22 (page 31 in Rev.D)
+#
+# SPI command byte format:
+#   bit 7 = MB (multi-byte, 0 for single-byte)
+#   bit 0 = R/W (1 = read, 0 = write)
+#   bits 6:1 = register address << 1
+#   read_command  = (reg << 1) | 0x01
+#   write_command = (reg << 1) | 0x00
 
 registers:
   - name: DEVID_AD
     address: 0x00
     type: read-only
-    default: null
+    default: 0xAD
     description: Analog Devices device ID
+    datasheet_ref: "Table 23, page 32"
     note: "Expected value: 0xAD"
 
   - name: DEVID_MST
     address: 0x01
     type: read-only
-    default: null
+    default: 0x1D
     description: MEMS sensor ID
+    datasheet_ref: "Table 24, page 32"
     note: "Expected value: 0x1D"
 
   - name: PARTID
     address: 0x02
     type: read-only
-    default: null
+    default: 0xED
     description: Part ID
+    datasheet_ref: "Table 25, page 32"
     note: "Expected value: 0xED"
 
   - name: REVID
@@ -33,6 +43,7 @@ registers:
     type: read-only
     default: null
     description: Revision ID
+    datasheet_ref: "Table 26, page 32"
     note: "Expected value: varies by revision"
 
   - name: STATUS
@@ -40,49 +51,54 @@ registers:
     type: read-only
     default: null
     description: Status register
+    datasheet_ref: "Table 27, page 32"
     fields:
-      - bit: 7
+      - bit: 4
         name: NVM_BUSY
-        description: NVM ready status (0=ready)
-      - bit: 6
+        description: NVM ready status (0=ready, 1=busy)
+      - bit: 3
         name: ACTIVITY
         description: Activity detection status
-      - bit: 5
+      - bit: 2
         name: FIFO_OVR
         description: FIFO overrun indicator
-      - bit: 4
+      - bit: 1
         name: FIFO_FULL
         description: FIFO full indicator
-      - bit: 3
+      - bit: 0
         name: DATA_RDY
         description: Data ready indicator
-      - bit: 2..0
-        name: FIFO_ENTRY_COUNT
-        description: Number of samples in FIFO (MSB bits)
+      - bit: 7..5
+        name: RESERVED
+        description: Reserved, read as 0
 
   - name: FIFO_ENTRIES
     address: 0x05
     type: read-only
     default: null
-    description: FIFO entry count (lower 8 bits)
+    description: FIFO entry count
+    datasheet_ref: "Table 28, page 33"
 
   - name: TEMP2
     address: 0x06
     type: read-only
     default: null
-    description: Temperature high byte
+    description: Temperature high byte (12-bit, left-aligned)
+    datasheet_ref: "Table 29, page 33"
 
   - name: TEMP1
     address: 0x07
     type: read-only
     default: null
-    description: Temperature low byte
+    description: Temperature low byte (12-bit, left-aligned)
+    datasheet_ref: "Table 29, page 33"
 
   - name: XDATA3
     address: 0x08
     type: read-only
     default: null
     description: X-axis acceleration data (MSB)
+    datasheet_ref: "Table 30, page 33"
 
   - name: XDATA2
     address: 0x09
@@ -101,6 +117,7 @@ registers:
     type: read-only
     default: null
     description: Y-axis acceleration data (MSB)
+    datasheet_ref: "Table 31, page 34"
 
   - name: YDATA2
     address: 0x0C
@@ -119,6 +136,7 @@ registers:
     type: read-only
     default: null
     description: Z-axis acceleration data (MSB)
+    datasheet_ref: "Table 32, page 34"
 
   - name: ZDATA2
     address: 0x0F
@@ -137,12 +155,14 @@ registers:
     type: read-only
     default: null
     description: FIFO data read
+    datasheet_ref: "Table 33, page 34"
 
   - name: OFFSET_X_H
     address: 0x1E
     type: read-write
     default: 0x00
     description: X-axis offset (high byte)
+    datasheet_ref: "Table 34, page 35"
 
   - name: OFFSET_X_L
     address: 0x1F
@@ -179,6 +199,7 @@ registers:
     type: read-write
     default: 0x00
     description: Activity detection enable
+    datasheet_ref: "Table 35, page 36"
     fields:
       - bit: 3
         name: ACT_EN_Z
@@ -195,6 +216,7 @@ registers:
     type: read-write
     default: 0x00
     description: Activity threshold (high byte)
+    datasheet_ref: "Table 36, page 36"
 
   - name: ACT_THRESH_L
     address: 0x26
@@ -207,16 +229,29 @@ registers:
     type: read-write
     default: 0x00
     description: Activity count
+    datasheet_ref: "Table 37, page 36"
 
   - name: FILTER
     address: 0x28
     type: read-write
-    default: null
+    default: 0x00
     description: Filter and output data rate control
+    datasheet_ref: "Table 38, page 37"
     fields:
-      - bit: 7..4
-        name: ODR
-        description: Output data rate selection
+      - bit: 6..4
+        name: HPF_CORNER
+        description: High-pass filter corner frequency selection
+        values:
+          - { value: 0, label: "HPF_OFF", description: "No high-pass filter (default)" }
+          - { value: 1, label: "24.7e-4 × ODR" }
+          - { value: 2, label: "6.2084e-4 × ODR" }
+          - { value: 3, label: "1.5545e-4 × ODR" }
+          - { value: 4, label: "0.3862e-4 × ODR" }
+          - { value: 5, label: "0.0954e-4 × ODR" }
+          - { value: 6, label: "0.0238e-4 × ODR" }
+      - bit: 3..0
+        name: ODR_LPF
+        description: Output data rate and low-pass filter corner
         values:
           - { value: 0, label: "4000 Hz" }
           - { value: 1, label: "2000 Hz" }
@@ -229,22 +264,23 @@ registers:
           - { value: 8, label: "15.625 Hz" }
           - { value: 9, label: "7.813 Hz" }
           - { value: 10, label: "3.906 Hz" }
-      - bit: 3..0
-        name: LPF_3DB
-        description: Low-pass filter 3dB corner
-        note: "Filter corner values depend on ODR setting. See datasheet."
+      - bit: 7
+        name: RESERVED
+        description: Reserved, do not modify
 
   - name: FIFO_SAMPLES
     address: 0x29
     type: read-write
     default: 0x00
     description: FIFO sample count threshold
+    datasheet_ref: "Table 39, page 37"
 
   - name: INT_MAP
     address: 0x2A
     type: read-write
     default: 0x00
     description: Interrupt mapping
+    datasheet_ref: "Table 40, page 37"
     note: "Bit fields control which interrupt goes to INT1 vs INT2 pins"
 
   - name: SYNC
@@ -252,40 +288,63 @@ registers:
     type: read-write
     default: 0x00
     description: External synchronization control
+    datasheet_ref: "Table 41, page 38"
 
   - name: RANGE
     address: 0x2C
     type: read-write
     default: 0x01
     description: Acceleration range selection
+    datasheet_ref: "Table 42, page 38"
     fields:
+      - bit: 7
+        name: I2C_HS
+        description: I2C high-speed mode enable
+      - bit: 6
+        name: INT_POL
+        description: Interrupt polarity (0=active low, 1=active high)
+      - bit: 5..2
+        name: RESERVED
+        description: Reserved, do not modify
       - bit: 1..0
         name: RANGE_SEL
         description: Acceleration range
         values:
-          - { value: 0, label: "±2g" }
-          - { value: 1, label: "±4g" }
-          - { value: 2, label: "±8g" }
+          - { value: 0x01, label: "±2g" }
+          - { value: 0x02, label: "±4g" }
+          - { value: 0x03, label: "±8g" }
 
   - name: POWER_CTL
     address: 0x2D
     type: read-write
     default: 0x01
     description: Power control
+    datasheet_ref: "Table 43, page 38"
     fields:
       - bit: 0
         name: MODE
-        description: Operating mode (0=standby, 1=measurement)
+        description: Operating mode (1=standby, 0=measurement)
+      - bit: 1
+        name: TEMP_OFF
+        description: Temperature sensor disable (1=disable temp sensor)
+      - bit: 2
+        name: DRDY_OFF
+        description: Data ready pin disable (1=disable DRDY pin)
+      - bit: 7..3
+        name: RESERVED
+        description: Reserved, do not modify
 
   - name: SELF_TEST
     address: 0x2E
     type: read-write
     default: 0x00
     description: Self-test control
+    datasheet_ref: "Table 44, page 38"
 
   - name: RESET
     address: 0x2F
     type: write-only
     default: null
     description: Software reset trigger
+    datasheet_ref: "Table 45, page 38"
     note: "Write 0x52 to reset"

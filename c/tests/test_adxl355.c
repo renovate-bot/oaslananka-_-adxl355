@@ -169,7 +169,7 @@ static void test_set_range_writes_expected_register(void)
     for (size_t i = 0; i < mock.call_count; i++) {
         if (mock.calls[i].is_write && mock.calls[i].reg == ADXL355_REG_RANGE) {
             found = 1;
-            TEST_ASSERT(mock.calls[i].data == 0, "range register value should be 0 for 2G");
+            TEST_ASSERT(mock.calls[i].data == 0x01, "range register value should be 0x01 for 2G");
             break;
         }
     }
@@ -250,6 +250,251 @@ static void test_reset(void)
 }
 
 /* ---------------------------------------------------------------------------
+ * Additional tests (Stage 3 coverage expansion)
+ * --------------------------------------------------------------------------- */
+
+static void test_temperature_raw(void)
+{
+    TEST_START("temperature_raw");
+    adxl355_mock_bus_t mock;
+    adxl355_mock_bus_init(&mock);
+    adxl355_mock_bus_set_identity_ok(&mock);
+    adxl355_bus_t bus = adxl355_mock_bus_get_interface(&mock);
+    adxl355_t dev;
+    adxl355_init(&dev, &bus);
+    adxl355_probe(&dev);
+
+    /* Set TEMP2=0x01, TEMP1=0x90 => raw = 0x0190 */
+    mock.regs[ADXL355_REG_TEMP2] = 0x01;
+    mock.regs[ADXL355_REG_TEMP1] = 0x90;
+
+    int16_t raw;
+    adxl355_status_t status = adxl355_read_temperature_raw(&dev, &raw);
+    TEST_ASSERT(status == ADXL355_OK, "read temperature raw should succeed");
+    TEST_ASSERT(raw == 0x0190, "raw temperature should be 0x0190");
+    TEST_END();
+}
+
+static void test_temperature_celsius(void)
+{
+    TEST_START("temperature_celsius");
+    adxl355_mock_bus_t mock;
+    adxl355_mock_bus_init(&mock);
+    adxl355_mock_bus_set_identity_ok(&mock);
+    adxl355_bus_t bus = adxl355_mock_bus_get_interface(&mock);
+    adxl355_t dev;
+    adxl355_init(&dev, &bus);
+    adxl355_probe(&dev);
+
+    /* raw = 1885 (0x075D) => 25.0 C (datasheet nominal intercept) */
+    mock.regs[ADXL355_REG_TEMP2] = 0x07;
+    mock.regs[ADXL355_REG_TEMP1] = 0x5D;
+
+    float temp;
+    adxl355_status_t status = adxl355_read_temperature_c(&dev, &temp);
+    TEST_ASSERT(status == ADXL355_OK, "read temperature C should succeed");
+    TEST_ASSERT(approx_eq(temp, 25.0f, 0.01f), "raw=1885 should give ~25.0 C");
+    TEST_END();
+}
+
+static void test_temperature_celsius_zero(void)
+{
+    TEST_START("temperature_celsius_zero");
+    adxl355_mock_bus_t mock;
+    adxl355_mock_bus_init(&mock);
+    adxl355_mock_bus_set_identity_ok(&mock);
+    adxl355_bus_t bus = adxl355_mock_bus_get_interface(&mock);
+    adxl355_t dev;
+    adxl355_init(&dev, &bus);
+    adxl355_probe(&dev);
+
+    /* raw = 0 => expected = 25 + (0 - 1885) / -9.05 ≈ 233.29 C */
+    mock.regs[ADXL355_REG_TEMP2] = 0x00;
+    mock.regs[ADXL355_REG_TEMP1] = 0x00;
+
+    float temp;
+    adxl355_read_temperature_c(&dev, &temp);
+    TEST_ASSERT(approx_eq(temp, 233.287f, 0.01f), "raw=0 should give ~233.29 C");
+    TEST_END();
+}
+
+static void test_read_status(void)
+{
+    TEST_START("read_status");
+    adxl355_mock_bus_t mock;
+    adxl355_mock_bus_init(&mock);
+    adxl355_mock_bus_set_identity_ok(&mock);
+    adxl355_bus_t bus = adxl355_mock_bus_get_interface(&mock);
+    adxl355_t dev;
+    adxl355_init(&dev, &bus);
+    adxl355_probe(&dev);
+
+    /* Set STATUS register with known pattern */
+    mock.regs[ADXL355_REG_STATUS] = 0x1F; /* all 5 bits set */
+
+    uint8_t status;
+    adxl355_status_t result = adxl355_read_status(&dev, &status);
+    TEST_ASSERT(result == ADXL355_OK, "read status should succeed");
+    TEST_ASSERT(status == 0x1F, "status should be 0x1F");
+    TEST_END();
+}
+
+static void test_read_status_data_rdy(void)
+{
+    TEST_START("read_status_data_rdy");
+    adxl355_mock_bus_t mock;
+    adxl355_mock_bus_init(&mock);
+    adxl355_mock_bus_set_identity_ok(&mock);
+    adxl355_bus_t bus = adxl355_mock_bus_get_interface(&mock);
+    adxl355_t dev;
+    adxl355_init(&dev, &bus);
+    adxl355_probe(&dev);
+
+    /* Set only DATA_RDY bit */
+    mock.regs[ADXL355_REG_STATUS] = ADXL355_STATUS_DATA_RDY;
+
+    uint8_t status;
+    adxl355_read_status(&dev, &status);
+    TEST_ASSERT(status & ADXL355_STATUS_DATA_RDY, "DATA_RDY bit should be set");
+    TEST_ASSERT(!(status & ADXL355_STATUS_FIFO_FULL), "FIFO_FULL bit should be clear");
+    TEST_END();
+}
+
+static void test_read_fifo_entries(void)
+{
+    TEST_START("read_fifo_entries");
+    adxl355_mock_bus_t mock;
+    adxl355_mock_bus_init(&mock);
+    adxl355_mock_bus_set_identity_ok(&mock);
+    adxl355_bus_t bus = adxl355_mock_bus_get_interface(&mock);
+    adxl355_t dev;
+    adxl355_init(&dev, &bus);
+    adxl355_probe(&dev);
+
+    /* Set FIFO_ENTRIES register */
+    mock.regs[ADXL355_REG_FIFO_ENTRIES] = 0x2A;
+
+    /* Read via raw bus access (no read_fifo_entries API in C, so verify bus read) */
+    uint8_t val;
+    bus.read(bus.ctx, ADXL355_REG_FIFO_ENTRIES, &val, 1);
+    TEST_ASSERT(val == 0x2A, "FIFO_ENTRIES should be 0x2A");
+    TEST_END();
+}
+
+static void test_filter_register_odr(void)
+{
+    TEST_START("filter_register_odr");
+    adxl355_mock_bus_t mock;
+    adxl355_mock_bus_init(&mock);
+    adxl355_mock_bus_set_identity_ok(&mock);
+    adxl355_bus_t bus = adxl355_mock_bus_get_interface(&mock);
+    adxl355_t dev;
+    adxl355_init(&dev, &bus);
+    adxl355_probe(&dev);
+
+    /* Set FILTER with HPF=5 in bits 6:4, ODR=0 */
+    mock.regs[ADXL355_REG_FILTER] = 0x50;
+
+    /* Set ODR to 5 (HZ_125) */
+    TEST_ASSERT(adxl355_set_odr(&dev, ADXL355_ODR_125_HZ) == ADXL355_OK, "set ODR");
+
+    /* Read back FILTER register */
+    uint8_t val;
+    bus.read(bus.ctx, ADXL355_REG_FILTER, &val, 1);
+    /* HPF bits 6:4 should be preserved (0x50), ODR bits 3:0 = 0x05 */
+    TEST_ASSERT(val == 0x55, "FILTER should be 0x55 (HPF=5, ODR=5)");
+    TEST_END();
+}
+
+static void test_filter_hpf_preserved(void)
+{
+    TEST_START("filter_hpf_preserved");
+    adxl355_mock_bus_t mock;
+    adxl355_mock_bus_init(&mock);
+    adxl355_mock_bus_set_identity_ok(&mock);
+    adxl355_bus_t bus = adxl355_mock_bus_get_interface(&mock);
+    adxl355_t dev;
+    adxl355_init(&dev, &bus);
+    adxl355_probe(&dev);
+
+    /* Set FILTER with bits 6:4 = 111 (HPF=7), ODR=0 */
+    mock.regs[ADXL355_REG_FILTER] = 0x70;
+
+    /* Set ODR to 0 (4000 Hz) */
+    adxl355_set_odr(&dev, ADXL355_ODR_4000_HZ);
+
+    uint8_t val;
+    bus.read(bus.ctx, ADXL355_REG_FILTER, &val, 1);
+    TEST_ASSERT((val & ADXL355_FILTER_HPF_MASK) == 0x70, "HPF bits should be preserved");
+    TEST_ASSERT((val & ADXL355_FILTER_ODR_MASK) == 0x00, "ODR bits should be 0");
+    TEST_END();
+}
+
+static void test_bus_error_probe(void)
+{
+    TEST_START("bus_error_probe");
+    adxl355_mock_bus_t mock;
+    adxl355_mock_bus_init(&mock);
+    adxl355_mock_bus_set_identity_ok(&mock);
+    mock.force_error = 1;
+    adxl355_bus_t bus = adxl355_mock_bus_get_interface(&mock);
+    adxl355_t dev;
+    adxl355_init(&dev, &bus);
+    TEST_ASSERT(adxl355_probe(&dev) == ADXL355_ERR_BUS, "probe should fail with bus error");
+    TEST_END();
+}
+
+static void test_bus_error_read_raw(void)
+{
+    TEST_START("bus_error_read_raw");
+    adxl355_mock_bus_t mock;
+    adxl355_mock_bus_init(&mock);
+    adxl355_mock_bus_set_identity_ok(&mock);
+    adxl355_bus_t bus = adxl355_mock_bus_get_interface(&mock);
+    adxl355_t dev;
+    adxl355_init(&dev, &bus);
+    adxl355_probe(&dev);
+
+    mock.force_error = 1;
+    adxl355_raw_xyz_t raw;
+    TEST_ASSERT(adxl355_read_raw(&dev, &raw) == ADXL355_ERR_BUS, "read_raw should fail with bus error");
+    TEST_END();
+}
+
+static void test_bus_error_set_range(void)
+{
+    TEST_START("bus_error_set_range");
+    adxl355_mock_bus_t mock;
+    adxl355_mock_bus_init(&mock);
+    adxl355_mock_bus_set_identity_ok(&mock);
+    adxl355_bus_t bus = adxl355_mock_bus_get_interface(&mock);
+    adxl355_t dev;
+    adxl355_init(&dev, &bus);
+    adxl355_probe(&dev);
+
+    mock.force_error = 1;
+    TEST_ASSERT(adxl355_set_range(&dev, ADXL355_RANGE_2G) == ADXL355_ERR_BUS,
+                "set_range should fail with bus error");
+    TEST_END();
+}
+
+static void test_decode_half_scale_positive(void)
+{
+    TEST_START("decode_half_scale_positive");
+    int32_t v = adxl355_decode_raw20(64, 0, 0);
+    TEST_ASSERT(v == 262144, "64,0,0 should decode to 262144");
+    TEST_END();
+}
+
+static void test_decode_half_scale_negative(void)
+{
+    TEST_START("decode_half_scale_negative");
+    int32_t v = adxl355_decode_raw20(192, 0, 0);
+    TEST_ASSERT(v == -262144, "192,0,0 should decode to -262144");
+    TEST_END();
+}
+
+/* ---------------------------------------------------------------------------
  * Main
  * --------------------------------------------------------------------------- */
 int main(void)
@@ -262,6 +507,8 @@ int main(void)
     test_decode_raw20_positive_max();
     test_decode_raw20_negative_min();
     test_decode_raw20_negative_one();
+    test_decode_half_scale_positive();
+    test_decode_half_scale_negative();
     test_raw_to_g_2g();
     test_raw_to_g_4g();
     test_raw_to_g_8g();
@@ -274,6 +521,17 @@ int main(void)
     test_status_string();
     test_set_power_mode();
     test_reset();
+    test_temperature_raw();
+    test_temperature_celsius();
+    test_temperature_celsius_zero();
+    test_read_status();
+    test_read_status_data_rdy();
+    test_read_fifo_entries();
+    test_filter_register_odr();
+    test_filter_hpf_preserved();
+    test_bus_error_probe();
+    test_bus_error_read_raw();
+    test_bus_error_set_range();
 
     printf("\n====================\n");
     printf("Results: %d/%d passed, %d failed\n",

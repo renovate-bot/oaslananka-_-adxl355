@@ -1,14 +1,15 @@
 # TODO
 
-## Pre-v0.1.0 Release
+## Pre-v0.1.0-alpha.1 Release
 
 ### General
-- [ ] Verify register addresses and bit fields against official ADXL355 datasheet
-- [ ] Confirm temperature conversion formula from datasheet
-- [ ] Verify scale factors (µg/LSB) from datasheet
-- [ ] Confirm SPI read/write command format
-- [ ] Confirm I2C 7-bit address options
-- [ ] Add CI configuration (GitHub Actions)
+- [x] Verify register addresses and bit fields against official ADXL355 Rev.D datasheet
+- [x] Confirm temperature conversion formula from datasheet: `25+(raw-1885)/-9.05`
+- [x] Verify scale factors (µg/LSB) from datasheet
+- [x] Confirm SPI read/write command format: `(reg<<1)|0x01`
+- [x] Confirm I2C 7-bit address options: `0x1D` (default), `0x53` (alternate)
+- [x] Add CI configuration (GitHub Actions) — spec validation + cross-language consistency
+- [x] Add release gate workflow (package dry-run checks)
 - [x] Fix copyright holder name in LICENSE
 
 ### C
@@ -19,35 +20,37 @@
 - [ ] Verify CMake builds on Linux/GCC, ARM GCC, MinGW
 - [ ] Add doxygen-style documentation comments to public headers
 - [x] Core MVP (probe, read_raw, set_range, power modes, temperature, reset)
-- [x] Mock bus testing (17 tests passing)
+- [x] Mock bus testing (47 test assertions passing)
+- [x] Linux SPI hardware example (spidev ioctl)
 
 ### Python
-- [ ] spidev adapter implementation
-- [ ] smbus2 adapter implementation
+- [x] spidev adapter implementation
+- [x] smbus2 adapter implementation
 - [ ] Calibration helper utilities
 - [ ] FIFO read support
 - [ ] Hardware-in-the-loop test examples
 - [ ] Verify ruff and mypy compliance
-- [ ] Add more device-level integration tests
-- [x] Core MVP (full Device class, 39 tests passing)
+- [x] Add more device-level integration tests (75 tests passing)
+- [x] Core MVP (full Device class, 75 tests passing)
+- [x] I2C address constants
 
 ### Rust
 - [ ] embedded-hal trait integration
 - [ ] no_std support verification
 - [ ] More comprehensive error types
 - [x] Full device API (probe, set_range, read_raw, power modes, temperature, reset)
-- [x] Mock transport with tests (20 tests passing)
+- [x] Mock transport with tests (31 tests passing — 12 unit + 12 mock_bus + 7 parse_raw)
 
 ### Node.js
 - [ ] spi-device adapter
 - [ ] i2c-bus adapter
 - [ ] npm package.json publish configuration
-- [x] Full device API (13 tests passing)
+- [x] Full device API (24 tests passing)
 
 ### Go
 - [ ] spidev/Linux implementation
 - [ ] Example with real hardware
-- [x] Full device API (all tests passing)
+- [x] Full device API (21 tests passing)
 
 ### C++
 - [ ] Arduino/PlatformIO compatibility layer
@@ -68,6 +71,6 @@
 - [x] Publishing guide
 
 ### Testing
-- [ ] Cross-language test vector verification (all languages produce same decode results)
+- [x] Cross-language test vector verification (all languages produce same decode results)
 - [ ] Hardware-in-the-loop test procedure
 - [ ] Continuous integration with hardware test runner

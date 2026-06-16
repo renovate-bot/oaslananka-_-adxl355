@@ -74,12 +74,17 @@ func (d *Device) Reset() error {
 	return nil
 }
 
-// SetRange sets the acceleration range.
+// SetRange sets the acceleration range, preserving unrelated bits.
 func (d *Device) SetRange(r Range) error {
 	if r < Range2G || r > Range8G {
 		return ErrInvalidArg
 	}
-	if err := d.writeU8(RegRANGE, byte(r)); err != nil {
+	reg, err := d.readU8(RegRANGE)
+	if err != nil {
+		return err
+	}
+	reg = (reg &^ RangeSEL_MASK) | byte(r)&RangeSEL_MASK
+	if err := d.writeU8(RegRANGE, reg); err != nil {
 		return err
 	}
 	d.rangeMode = r
@@ -96,12 +101,13 @@ func (d *Device) GetRange() (Range, error) {
 }
 
 // SetPowerMode sets the power mode (standby/measurement).
+// Datasheet Rev.D, Table 43: bit 0 = 1 => standby, bit 0 = 0 => measurement.
 func (d *Device) SetPowerMode(mode PowerMode) error {
 	reg, err := d.readU8(RegPOWER_CTL)
 	if err != nil {
 		return err
 	}
-	if mode == PowerMeasurement {
+	if mode == PowerStandby {
 		reg |= 1
 	} else {
 		reg &^= 1
@@ -159,13 +165,13 @@ func (d *Device) ReadTemperatureRaw() (int16, error) {
 }
 
 // ReadTemperatureC reads temperature in degrees Celsius.
-// Preliminary: T(°C) = raw / 100.0 + 25.0
+// Datasheet Rev.D: T(°C) = 25.0 + (raw - 1885.0) / -9.05
 func (d *Device) ReadTemperatureC() (float32, error) {
 	raw, err := d.ReadTemperatureRaw()
 	if err != nil {
 		return 0, err
 	}
-	return float32(raw)/100.0 + 25.0, nil
+	return 25.0 + (float32(raw)-1885.0)/-9.05, nil
 }
 
 // ReadStatus reads the status register.

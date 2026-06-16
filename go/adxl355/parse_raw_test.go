@@ -25,3 +25,15 @@ func TestDecodeNegativeOne(t *testing.T) {
 		t.Fail()
 	}
 }
+
+func TestDecodeHalfScalePositive(t *testing.T) {
+	if DecodeRaw20(64, 0, 0) != 262144 {
+		t.Fail()
+	}
+}
+
+func TestDecodeHalfScaleNegative(t *testing.T) {
+	if DecodeRaw20(192, 0, 0) != -262144 {
+		t.Fail()
+	}
+}

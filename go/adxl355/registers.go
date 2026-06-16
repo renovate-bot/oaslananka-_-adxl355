@@ -1,7 +1,7 @@
 package adxl355
 
 // Register addresses for the ADXL355.
-// Preliminary — verify against official ADXL355 datasheet.
+// Based on ADXL354/ADXL355 Rev.D datasheet.
 const (
 	RegDEVID_AD     = 0x00
 	RegDEVID_MST    = 0x01
@@ -41,23 +41,53 @@ const (
 	RegRESET        = 0x2F
 )
 
-// Expected identity register values.
+// Expected identity register values (datasheet Rev.D, Tables 23-25).
 const (
 	DEVID_AD_VALUE  = 0xAD
 	DEVID_MST_VALUE = 0x1D
 	PARTID_VALUE    = 0xED
 )
 
-// Reset code.
+// Reset code (datasheet Rev.D, Table 45).
 const RESET_CODE = 0x52
 
-// Acceleration range.
+// STATUS register bit positions (datasheet Rev.D, Table 27).
+const (
+	StatusNVM_BUSY = 4
+	StatusACTIVITY = 3
+	StatusFIFO_OVR = 2
+	StatusFIFO_FULL = 1
+	StatusDATA_RDY  = 0
+)
+
+// FILTER register masks (datasheet Rev.D, Table 38).
+const (
+	FilterODR_MASK  = 0x0F
+	FilterODR_SHIFT = 0
+	FilterHPF_MASK  = 0x70
+	FilterHPF_SHIFT = 4
+)
+
+// RANGE register mask (datasheet Rev.D, Table 42).
+const RangeSEL_MASK = 0x03
+
+// SPI command helpers (datasheet Rev.D, SPI Protocol section).
+func SPIReadCmd(reg uint8) uint8  { return (reg << 1) | 0x01 }
+func SPIWriteCmd(reg uint8) uint8 { return reg << 1 }
+
+// I2C addresses (datasheet Rev.D, Table 8).
+const (
+	I2CDefaultAddr  = 0x1D
+	I2CAlternateAddr = 0x53
+)
+
+// Acceleration range (datasheet Rev.D, Table 42).
 type Range int
 
 const (
-	Range2G Range = 0
-	Range4G Range = 1
-	Range8G Range = 2
+	Range2G Range = 0x01
+	Range4G Range = 0x02
+	Range8G Range = 0x03
 )
 
 // Scale factors (g per LSB).
@@ -70,12 +100,12 @@ const (
 // Standard gravity in m/s².
 const StandardGravityMS2 = 9.80665
 
-// Power mode.
+// Power mode (datasheet Rev.D, Table 43: bit 0 = 1 => standby).
 type PowerMode int
 
 const (
-	PowerStandby    PowerMode = 0
-	PowerMeasurement PowerMode = 1
+	PowerStandby     PowerMode = 1
+	PowerMeasurement PowerMode = 0
 )
 
 // Output data rate.

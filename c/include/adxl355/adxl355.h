@@ -29,15 +29,23 @@ typedef enum {
 /* ---------------------------------------------------------------------------
  * Enums
  * --------------------------------------------------------------------------- */
+/**
+ * Acceleration range selection.
+ * Register values (datasheet Rev.D, Table 42): 0x01=2g, 0x02=4g, 0x03=8g
+ */
 typedef enum {
-    ADXL355_RANGE_2G = 0,
-    ADXL355_RANGE_4G = 1,
-    ADXL355_RANGE_8G = 2
+    ADXL355_RANGE_2G = 0x01,
+    ADXL355_RANGE_4G = 0x02,
+    ADXL355_RANGE_8G = 0x03
 } adxl355_range_t;
 
+/**
+ * Power mode selection.
+ * Datasheet Rev.D, Table 43: bit 0 = 1 => standby, bit 0 = 0 => measurement.
+ */
 typedef enum {
-    ADXL355_POWER_STANDBY      = 0,
-    ADXL355_POWER_MEASUREMENT  = 1
+    ADXL355_POWER_STANDBY      = 1,
+    ADXL355_POWER_MEASUREMENT  = 0
 } adxl355_power_mode_t;
 
 typedef enum {

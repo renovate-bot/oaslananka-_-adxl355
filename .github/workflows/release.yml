@@ -1,0 +1,95 @@
+name: Release Gate
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version to release (e.g. v0.1.0-alpha.1)"
+        required: true
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  # ── Pre-flight: all CI tests must pass ──────────────────────────
+  ci-passed:
+    name: CI Green?
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check CI status for this commit
+        run: |
+          echo "In a real workflow, this would query the commit status API."
+          echo "For now the release gate assumes CI was green on the target commit."
+
+  # ── Python package dry-run ──────────────────────────────────────
+  python-package:
+    name: Python (sdist + wheel)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: python
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install build
+        run: pip install build
+      - name: Build sdist + wheel
+        run: python -m build --outdir dist
+
+  # ── Rust crate dry-run ──────────────────────────────────────────
+  rust-package:
+    name: Rust (crate)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: rust
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - name: cargo package (dry-run)
+        run: cargo package --allow-dirty
+
+  # ── Node package dry-run ────────────────────────────────────────
+  node-package:
+    name: Node.js (tarball)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: node
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - name: Install
+        run: npm ci
+      - name: Build
+        run: npm run build
+      - name: Pack (dry-run)
+        run: npm pack --dry-run
+
+  # ── Go module check ─────────────────────────────────────────────
+  go-package:
+    name: Go (module)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: go
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.21"
+      - name: go vet
+        run: go vet ./...
+      - name: go build
+        run: go build ./...

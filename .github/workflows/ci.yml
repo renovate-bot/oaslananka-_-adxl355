@@ -6,7 +6,6 @@ on:
     paths-ignore:
       - "**.md"
       - "docs/**"
-      - "spec/**"
   pull_request:
     branches: [main, master]
   workflow_dispatch:
@@ -161,5 +160,9 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: "3.11"
-      - name: Verify spec
-        run: python -c "import json; v=json.load(open('spec/test_vectors.json')); print(f'{len(v[\"decode_raw20\"])} decode + {len(v[\"conversion\"])} conversion vectors')"
+      - name: Install deps
+        run: pip install pyyaml
+      - name: Validate spec YAML
+        run: python spec/validate_spec.py
+      - name: Check cross-language consistency
+        run: python spec/check_language_consistency.py

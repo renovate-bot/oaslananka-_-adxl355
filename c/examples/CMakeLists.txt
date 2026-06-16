@@ -9,3 +9,12 @@ target_include_directories(configure_range PRIVATE ${CMAKE_SOURCE_DIR}/include)
 add_executable(mock_demo mock_demo.c ${CMAKE_SOURCE_DIR}/tests/test_mock_bus.c)
 target_link_libraries(mock_demo PRIVATE adxl355)
 target_include_directories(mock_demo PRIVATE ${CMAKE_SOURCE_DIR}/include ${CMAKE_SOURCE_DIR}/tests)
+
+# ── Linux hardware example (spidev) ──────────────────────────────────────
+# Linux-only; depends on <linux/spi/spidev.h> and <sys/ioctl.h>
+if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+    add_executable(linux_spi linux_spi.c)
+    target_link_libraries(linux_spi PRIVATE adxl355)
+    target_include_directories(linux_spi PRIVATE ${CMAKE_SOURCE_DIR}/include)
+    target_compile_definitions(linux_spi PRIVATE _GNU_SOURCE)
+endif()

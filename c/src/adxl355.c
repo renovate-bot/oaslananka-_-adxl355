@@ -133,7 +133,8 @@ adxl355_status_t adxl355_set_power_mode(adxl355_t *dev, adxl355_power_mode_t mod
     if (read_reg(dev, ADXL355_REG_POWER_CTL, &reg) != 0) {
         return ADXL355_ERR_BUS;
     }
-    if (mode == ADXL355_POWER_MEASUREMENT) {
+    /* Datasheet Rev.D, Table 43: bit 0 = 1 => standby, bit 0 = 0 => measurement */
+    if (mode == ADXL355_POWER_STANDBY) {
         reg |= (uint8_t)(1U << ADXL355_POWER_MODE_BIT);
     } else {
         reg &= (uint8_t)~(1U << ADXL355_POWER_MODE_BIT);
@@ -156,7 +157,8 @@ adxl355_status_t adxl355_set_odr(adxl355_t *dev, adxl355_odr_t odr)
     if (read_reg(dev, ADXL355_REG_FILTER, &reg) != 0) {
         return ADXL355_ERR_BUS;
     }
-    reg = (uint8_t)((reg & ADXL355_FILTER_LPF_MASK) | ((uint8_t)odr << ADXL355_FILTER_ODR_SHIFT));
+    /* Datasheet Rev.D, Table 38: ODR_LPF in bits 3:0, HPF_CORNER in bits 6:4 */
+    reg = (uint8_t)((reg & ADXL355_FILTER_HPF_MASK) | ((uint8_t)odr & ADXL355_FILTER_ODR_MASK));
     if (write_reg(dev, ADXL355_REG_FILTER, reg) != 0) {
         return ADXL355_ERR_BUS;
     }
@@ -235,9 +237,9 @@ adxl355_status_t adxl355_read_temperature_c(adxl355_t *dev, float *out)
     if (status != ADXL355_OK) {
         return status;
     }
-    /* Preliminary formula: T(°C) = raw / 100.0 + 25.0
-     * TODO: Verify against ADXL355 datasheet. */
-    *out = (float)raw / 100.0f + 25.0f;
+    /* Datasheet Rev.D temperature sensor: 12-bit unsigned, nominal intercept 1885 LSB at 25°C,
+     * slope -9.05 LSB/°C. Formula: T(°C) = 25.0 + (raw - 1885.0) / -9.05 */
+    *out = 25.0f + ((float)raw - 1885.0f) / -9.05f;
     return ADXL355_OK;
 }
 

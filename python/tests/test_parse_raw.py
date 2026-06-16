@@ -48,6 +48,14 @@ class TestDecodeRaw20:
         result = _decode_raw20(b[0], b[1], b[2])
         assert result == v["raw"], f"{v['name']}: expected {v['raw']}, got {result}"
 
+    def test_half_scale_positive(self) -> None:
+        """bytes [64, 0, 0] → 262144 (half-scale positive)."""
+        assert _decode_raw20(64, 0, 0) == 262144
+
+    def test_half_scale_negative(self) -> None:
+        """bytes [192, 0, 0] → -262144 (half-scale negative)."""
+        assert _decode_raw20(192, 0, 0) == -262144
+
 
 class TestRawToG:
     """Verify raw-to-g conversion."""
