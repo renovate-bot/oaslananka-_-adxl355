@@ -1,4 +1,4 @@
-/// Integration tests for ADXL355 device with mock transport.
+//! Integration tests for ADXL355 device with mock transport.
 
 use adxl355::{Adxl355, PowerMode, Error};
 use adxl355::registers;

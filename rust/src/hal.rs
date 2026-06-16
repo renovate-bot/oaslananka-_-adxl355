@@ -5,6 +5,8 @@
 //!
 //! Requires feature `hal`: `cargo build --features hal`
 
+use alloc::{vec, vec::Vec};
+
 use crate::Error;
 use crate::Transport;
 

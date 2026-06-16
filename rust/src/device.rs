@@ -1,5 +1,7 @@
 //! ADXL355 device driver.
 
+use alloc::vec::Vec;
+
 use crate::error::Error;
 use crate::registers::{self, Range, PowerMode};
 use crate::types::{AccelXyz, RawXyz};

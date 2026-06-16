@@ -1,4 +1,4 @@
-/// Integration tests for 20-bit raw data decoding.
+//! Integration tests for 20-bit raw data decoding.
 
 use adxl355::{decode_raw20, raw_to_g, Range};
 
